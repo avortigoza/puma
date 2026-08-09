@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+/* PUMA palette - tuned to the mockup: hot-pink/rose primary, soft pink
+   sidebar highlight, green/amber/purple KPI accents. */
+@theme {
+  --color-puma-primary: #e82a78;
+  --color-puma-primary-dark: #cc256a;
+  --color-puma-primary-light: #fdf1f5;
+  --color-puma-bg: #ffffff;
+  --color-puma-green: #16a34a;
+  --color-puma-green-bg: #dcfce7;
+  --color-puma-amber: #d97706;
+  --color-puma-amber-bg: #fef3c7;
+  --color-puma-purple: #9333ea;
+  --color-puma-purple-bg: #f3e8ff;
+  --color-puma-red: #dc2626;
+  --color-puma-red-bg: #fee2e2;
+}

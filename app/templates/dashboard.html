@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+{#
+Tailwind's build only scans template files for class names, not main.py -
+these classes are generated dynamically by the app_badge_color() filter,
+so they're listed here as plain text purely so the CSS build includes them.
+bg-orange-500 bg-sky-600 bg-indigo-500 bg-emerald-500 bg-orange-600
+bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
+#}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+{% from "base.html" import icon %}
+
+<div class="mb-6 flex items-start justify-between">
+  <div>
+    <h1 class="text-2xl font-bold text-gray-800">Welcome back, {{ user.username }}! 👋</h1>
+    <p class="text-gray-400 text-sm mt-1">Here's the status of your monitored applications.</p>
+  </div>
+  <div class="flex items-center gap-2">
+    <form method="post" action="/check-updates">
+      <button type="submit"
+              class="flex items-center gap-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 text-sm font-medium rounded-lg px-4 py-2.5 transition">
+        {{ icon("refresh", "w-4 h-4") }}
+        Check All Now
+      </button>
+    </form>
+    <a href="/applications/new" class="flex items-center gap-2 bg-puma-primary hover:bg-puma-primary-dark text-white text-sm font-medium rounded-lg px-4 py-2.5 transition">
+      {{ icon("plus", "w-4 h-4") }}
+      Add Application
+    </a>
+  </div>
+</div>
+
+<!-- KPI cards -->
+<div class="grid grid-cols-4 gap-4 mb-6">
+  <div class="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-3">
+    <div class="w-11 h-11 rounded-lg bg-puma-primary-light flex items-center justify-center text-puma-primary">
+      {{ icon("grid", "w-5 h-5") }}
+    </div>
+    <div>
+      <div class="text-xs text-gray-400">Total Applications</div>
+      <div class="text-2xl font-bold">{{ total }}</div>
+      <div class="text-[11px] text-gray-400">Monitored</div>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-3">
+    <div class="w-11 h-11 rounded-lg bg-puma-green-bg flex items-center justify-center text-puma-green">
+      {{ icon("check-circle", "w-5 h-5") }}
+    </div>
+    <div>
+      <div class="text-xs text-gray-400">Up to Date</div>
+      <div class="text-2xl font-bold">{{ up_to_date }}</div>
+      <div class="text-[11px] text-gray-400">Applications</div>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-3">
+    <div class="w-11 h-11 rounded-lg bg-puma-amber-bg flex items-center justify-center text-puma-amber">
+      {{ icon("alert", "w-5 h-5") }}
+    </div>
+    <div>
+      <div class="text-xs text-gray-400">Updates Available</div>
+      <div class="text-2xl font-bold">{{ updates_available }}</div>
+      <div class="text-[11px] text-gray-400">Applications</div>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-3">
+    <div class="w-11 h-11 rounded-lg bg-puma-purple-bg flex items-center justify-center text-puma-purple">
+      {{ icon("clock", "w-5 h-5") }}
+    </div>
+    <div>
+      <div class="text-xs text-gray-400">Last Check</div>
+      <div class="text-2xl font-bold">{{ last_checked | timeago }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Applications table -->
+<div class="bg-white rounded-xl border border-gray-100 mb-6">
+  <div class="flex items-center justify-between px-4 py-2 border-b border-gray-100">
+    <div class="flex items-center gap-2 font-semibold text-gray-700">
+      {{ icon("grid", "w-4 h-4 text-puma-primary") }}
+      Applications
+    </div>
+    <div class="flex items-center gap-2">
+      <div class="relative">
+        {{ icon("search", "w-3.5 h-3.5 text-gray-300 absolute left-3 top-1/2 -translate-y-1/2") }}
+        <input type="text" placeholder="Search application..."
+               class="pl-8 pr-3 py-1 text-sm rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-puma-primary/20">
+      </div>
+      <button type="button" class="flex items-center gap-1.5 px-3 py-1 text-sm text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50">
+        {{ icon("filter", "w-4 h-4") }}
+        Filter
+        {{ icon("chevron-down", "w-3.5 h-3.5 text-gray-400") }}
+      </button>
+    </div>
+  </div>
+
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="text-gray-500 text-xs border-b border-gray-100 bg-puma-primary-light">
+        <th class="px-5 py-2.5 font-medium text-left text-gray-800">Application</th>
+        <th class="px-5 py-2.5 font-medium text-left text-gray-800">Local Version</th>
+        <th class="px-5 py-2.5 font-medium text-left text-gray-800">Latest Version</th>
+        <th class="px-5 py-2.5 font-medium text-left text-gray-800">Status</th>
+        <th class="px-5 py-2.5 font-medium text-left text-gray-800">Instance URL</th>
+        <th class="px-5 py-2.5 font-medium text-left text-gray-800">Last Checked</th>
+        <th class="px-5 py-2.5 font-medium text-left text-gray-800">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for app in apps %}
+      <tr class="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
+        <td class="px-5 py-3">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold text-white shrink-0 {{ app.slug | app_badge_color }}">
+              {{ app.name[0] | upper }}
+            </div>
+            <div>
+              <div class="font-medium text-gray-800">{{ app.name }}</div>
+              <div class="text-xs text-gray-400">{{ app.category or "" }}</div>
+            </div>
+          </div>
+        </td>
+        <td class="px-5 py-3">
+          <div>{{ app.installed_version or "—" }}</div>
+          {% if app.installed_version and app.last_checked_at %}
+          <div class="text-[11px] text-gray-400">({{ app.last_checked_at | shortdate }})</div>
+          {% endif %}
+        </td>
+        <td class="px-5 py-3 {% if not app.latest_version %}text-gray-400{% elif not app.installed_version %}text-gray-500{% elif app.update_available %}text-puma-red font-medium{% else %}text-puma-green{% endif %}">
+          <div>{{ app.latest_version or "—" }}</div>
+          {% set latest_date = app.latest_published_at or app.latest_seen_at or app.last_checked_at %}
+          {% if app.latest_version and latest_date %}
+          <div class="text-[11px] {% if app.update_available %}text-puma-red/70{% else %}text-gray-400{% endif %}">({{ latest_date | shortdate }})</div>
+          {% endif %}
+        </td>
+        <td class="px-5 py-3">
+          {% if not app.latest_version %}
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gray-100 text-gray-500 text-xs font-medium">
+            <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span> Not Checked
+          </span>
+          {% elif not app.installed_version %}
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-medium" title="Latest release is known, but the installed version hasn't been recorded yet">
+            <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span> Unknown
+          </span>
+          {% elif app.update_available %}
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-puma-red-bg text-puma-red text-xs font-medium whitespace-nowrap">
+            <span class="w-1.5 h-1.5 rounded-full bg-puma-red"></span> Update Available
+          </span>
+          {% else %}
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-puma-green-bg text-puma-green text-xs font-medium">
+            <span class="w-1.5 h-1.5 rounded-full bg-puma-green"></span> Up to Date
+          </span>
+          {% endif %}
+        </td>
+        <td class="px-5 py-3">
+          {% if app.instance_url %}
+          <a href="{{ app.instance_url }}" target="_blank" class="text-puma-primary hover:underline text-xs">{{ app.instance_url }}</a>
+          {% else %}—{% endif %}
+        </td>
+        <td class="px-5 py-3 text-xs text-gray-400">{{ app.last_checked_at | timeago }}</td>
+        <td class="px-5 py-3">
+          <div class="flex items-center gap-1.5">
+            <form method="post" action="/applications/{{ app.id }}/check">
+              <button type="submit" title="Check now"
+                      class="w-8 h-8 rounded-lg bg-puma-primary-light text-puma-primary flex items-center justify-center hover:bg-puma-primary/20">
+                {{ icon("refresh", "w-4 h-4") }}
+              </button>
+            </form>
+            <button type="button" title="More actions"
+                    class="w-8 h-8 rounded-lg bg-puma-primary-light text-puma-primary flex items-center justify-center hover:bg-puma-primary/20">
+              {{ icon("more-vertical", "w-4 h-4") }}
+            </button>
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="7" class="px-5 py-10 text-center text-gray-400 text-sm">
+          No applications yet. Click <span class="text-puma-primary font-medium">Add Application</span> to start monitoring one.
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if apps %}
+  <div class="px-5 py-3 text-xs text-gray-400 border-t border-gray-100">
+    Showing 1 to {{ apps|length }} of {{ apps|length }} applications
+  </div>
+  {% endif %}
+</div>
+
+<!-- Bottom row: history + settings overview -->
+<div class="grid grid-cols-2 gap-4">
+  <div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
+    <div class="flex items-center gap-2 font-semibold text-puma-primary text-sm px-4 pt-3 pb-2 border-b border-gray-100">
+      {{ icon("clock", "w-4 h-4 text-puma-primary") }}
+      Recent Check History
+    </div>
+    {% if recent_runs %}
+    <table class="w-full text-xs">
+      <thead>
+        <tr class="text-gray-800 border-b border-gray-100 bg-puma-primary-light">
+          <th class="text-left font-medium px-4 py-2">Date &amp; Time</th>
+          <th class="text-left font-medium px-4 py-2">Type</th>
+          <th class="text-left font-medium px-4 py-2">Result</th>
+          <th class="px-4 py-2"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for run in recent_runs %}
+        <tr class="border-b border-gray-100">
+          <td class="px-4 py-1.5 text-gray-600 whitespace-nowrap">{{ run.started_at.strftime("%b %d, %Y %I:%M %p") }}</td>
+          <td class="px-4 py-1.5 text-gray-400 whitespace-nowrap">{{ run.trigger.value | capitalize }} Check</td>
+          <td class="px-4 py-1.5">
+            <span class="inline-block bg-puma-primary-light text-puma-primary font-medium text-xs px-2.5 py-1 rounded-full whitespace-nowrap">{{ run.apps_checked }} checked</span>
+          </td>
+          <td class="px-4 py-1.5 text-gray-300 text-right">&rsaquo;</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="text-right px-4 py-2">
+      <a href="/history" class="text-puma-primary text-xs font-medium hover:underline">View full history &rarr;</a>
+    </div>
+    {% else %}
+    <p class="text-sm text-gray-400 px-4 py-3">No checks have run yet.</p>
+    {% endif %}
+  </div>
+
+  <div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
+    <div class="flex items-center gap-2 font-semibold text-puma-primary text-sm px-4 pt-3 pb-2 border-b border-gray-100">
+      {{ icon("settings", "w-4 h-4 text-puma-primary") }}
+      Settings Overview
+    </div>
+    <div class="text-sm">
+      <div class="flex items-center justify-between px-4 py-2 border-b border-gray-100">
+        <span class="flex items-center gap-2 text-gray-500 text-xs">{{ icon("clock", "w-3.5 h-3.5 text-puma-primary") }} Auto Check</span>
+        <span class="text-puma-primary font-medium text-xs">
+          {{ "Enabled" if settings_overview.auto_check_enabled == "true" else "Disabled" }}
+          (Every {{ (settings_overview.auto_check_interval_minutes|int // 60) }}h)
+        </span>
+      </div>
+      <div class="flex items-center justify-between px-4 py-2 border-b border-gray-100">
+        <span class="flex items-center gap-2 text-gray-500 text-xs">{{ icon("clock", "w-3.5 h-3.5 text-puma-primary") }} Update Source Timeout</span>
+        <span class="text-puma-primary font-medium text-xs">{{ settings_overview.update_source_timeout_seconds }} seconds</span>
+      </div>
+      <div class="flex items-center justify-between px-4 py-2 border-b border-gray-100">
+        <span class="flex items-center gap-2 text-gray-500 text-xs">{{ icon("bell", "w-3.5 h-3.5 text-puma-primary") }} Notifications</span>
+        <span class="text-puma-primary font-medium text-xs">
+          {{ "Enabled" if settings_overview.notifications_enabled == "true" else "Disabled" }}
+        </span>
+      </div>
+      <div class="flex items-center justify-between px-4 py-2 border-b border-gray-100">
+        <span class="flex items-center gap-2 text-gray-500 text-xs">{{ icon("check-circle", "w-3.5 h-3.5 text-puma-primary") }} Trusted Hosts</span>
+        <span class="text-puma-primary font-medium text-xs">{{ settings_overview.trusted_hosts_count }} configured</span>
+      </div>
+    </div>
+    <div class="text-right px-4 py-2">
+      <a href="/settings" class="text-puma-primary text-xs font-medium hover:underline">Go to settings &rarr;</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

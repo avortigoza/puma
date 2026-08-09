@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign in - PUMA</title>
+  <link rel="stylesheet" href="/static/css/output.css">
+</head>
+<body class="bg-puma-bg min-h-screen flex items-center justify-center">
+  <div class="w-full max-w-sm">
+    <div class="text-center mb-6">
+      <div class="w-14 h-14 mx-auto rounded-xl bg-puma-primary/10 flex items-center justify-center mb-3">
+        <span class="text-puma-primary font-bold text-2xl">P</span>
+      </div>
+      <div class="font-extrabold text-puma-primary text-xl">PUMA</div>
+      <div class="text-xs text-gray-400">Program Update Monitoring Assistant</div>
+    </div>
+
+    <form method="post" action="/login" class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 space-y-4">
+      {% if error %}
+      <div class="bg-red-50 text-puma-red text-sm rounded-lg px-3 py-2">{{ error }}</div>
+      {% endif %}
+      <div>
+        <label class="block text-sm font-medium text-gray-600 mb-1">Username</label>
+        <input type="text" name="username" required autofocus
+               class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-600 mb-1">Password</label>
+        <input type="password" name="password" required
+               class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+      </div>
+      <button type="submit"
+              class="w-full bg-puma-primary hover:bg-puma-primary-dark text-white font-medium rounded-lg py-2 text-sm transition">
+        Sign in
+      </button>
+    </form>
+  </div>
+</body>
+</html>

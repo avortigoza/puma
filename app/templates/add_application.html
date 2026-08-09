@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+{% block title %}Add Application{% endblock %}
+{% block content %}
+{% from "base.html" import icon %}
+
+<div class="max-w-2xl mx-auto mb-6">
+  <a href="/" class="text-sm text-gray-400 hover:text-puma-primary">&larr; Back to Dashboard</a>
+  <h1 class="text-2xl font-bold text-gray-800 mt-2">Add Application</h1>
+  <p class="text-gray-400 text-sm mt-1">Register a new app to monitor for updates.</p>
+</div>
+
+{% if error %}
+<div class="max-w-2xl mx-auto bg-red-50 text-puma-red text-sm rounded-lg px-4 py-3 mb-4">{{ error }}</div>
+{% endif %}
+
+<form method="post" action="/applications" class="max-w-2xl mx-auto space-y-6">
+
+  <!-- App details -->
+  <div class="bg-white rounded-xl border border-gray-100 p-5 space-y-4">
+    <div class="font-semibold text-gray-700">Application Details</div>
+
+    <div>
+      <label class="block text-sm font-medium text-gray-600 mb-1">Name *</label>
+      <input type="text" name="name" required value="{{ form.get('name', '') }}"
+             placeholder="e.g. VLE (Moodle)"
+             class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+    </div>
+
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-600 mb-1">Category</label>
+        <input type="text" name="category" value="{{ form.get('category', '') }}"
+               placeholder="LMS, Wiki, ITSM, Git..."
+               class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-600 mb-1">Instance URL</label>
+        <input type="url" name="instance_url" value="{{ form.get('instance_url', '') }}"
+               placeholder="https://vle.pstprd.one"
+               class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+      </div>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-gray-600 mb-1">Installed Version</label>
+      <input type="text" name="installed_version" value="{{ form.get('installed_version', '') }}"
+             placeholder="e.g. 5.2.1 — you'll update this manually after upgrades"
+             class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+    </div>
+  </div>
+
+  <!-- Update source -->
+  <div class="bg-white rounded-xl border border-gray-100 p-5 space-y-4">
+    <div class="font-semibold text-gray-700">Update Source</div>
+
+    <div>
+      <label class="block text-sm font-medium text-gray-600 mb-1">Source Type *</label>
+      <select name="source_type" id="source_type" required
+              class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+        {% for st in source_types %}
+        <option value="{{ st.key }}" {% if form.get('source_type') == st.key %}selected{% endif %}>{{ st.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    {% for st in source_types %}
+    <div class="source-fields space-y-4 {% if not loop.first and form.get('source_type', source_types[0].key) != st.key %}hidden{% endif %}"
+         data-source-type="{{ st.key }}">
+      {% for field in st.fields %}
+      <div>
+        <label class="block text-sm font-medium text-gray-600 mb-1">
+          {{ field.label }}{% if field.required %} *{% endif %}
+        </label>
+        {% if field.type == "select" %}
+        <select name="cfg__{{ st.key }}__{{ field.name }}"
+                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+          {% for choice in field.choices %}
+          <option value="{{ choice }}" {% if form.get('cfg__' ~ st.key ~ '__' ~ field.name) == choice %}selected{% endif %}>{{ choice }}</option>
+          {% endfor %}
+        </select>
+        {% else %}
+        <input type="{{ field.type }}" name="cfg__{{ st.key }}__{{ field.name }}"
+               value="{{ form.get('cfg__' ~ st.key ~ '__' ~ field.name, '') }}"
+               placeholder="{{ field.placeholder }}"
+               class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+        {% endif %}
+        {% if field.help %}
+        <p class="text-xs text-gray-400 mt-1">{{ field.help }}</p>
+        {% endif %}
+      </div>
+      {% endfor %}
+      {% if st.key in ("gitlab_releases", "glpi_rest_api", "atom_feed", "json_api", "html_regex") %}
+      <p class="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
+        This source contacts a URL you provide, so its host must be listed under Settings &rarr; Trusted Hosts first.
+      </p>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Installed version probe -->
+  <div class="bg-white rounded-xl border border-gray-100 p-5 space-y-4">
+    <div class="font-semibold text-gray-700">Installed Version</div>
+    <p class="text-xs text-gray-400 -mt-2">
+      Optional. Without a probe, type the version once below and update it manually after upgrades.
+    </p>
+
+    <div>
+      <label class="block text-sm font-medium text-gray-600 mb-1">Installed Version</label>
+      <input type="text" name="installed_version" value="{{ form.get('installed_version', '') }}"
+             placeholder="e.g. 5.2.1 — leave blank if using a probe below"
+             class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-gray-600 mb-1">Automatic Probe</label>
+      <select name="installed_probe" id="installed_probe"
+              class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+        <option value="" {% if not form.get('installed_probe') %}selected{% endif %}>None — manual entry only</option>
+        {% for st in source_types %}
+        <option value="{{ st.key }}" {% if form.get('installed_probe') == st.key %}selected{% endif %}>{{ st.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    {% for st in source_types %}
+    <div class="probe-fields space-y-4 {% if form.get('installed_probe') != st.key %}hidden{% endif %}"
+         data-probe-type="{{ st.key }}">
+      {% for field in st.fields %}
+      <div>
+        <label class="block text-sm font-medium text-gray-600 mb-1">
+          {{ field.label }}{% if field.required %} *{% endif %}
+        </label>
+        {% if field.type == "select" %}
+        <select name="probe__{{ st.key }}__{{ field.name }}"
+                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+          {% for choice in field.choices %}
+          <option value="{{ choice }}" {% if form.get('probe__' ~ st.key ~ '__' ~ field.name) == choice %}selected{% endif %}>{{ choice }}</option>
+          {% endfor %}
+        </select>
+        {% else %}
+        <input type="{{ field.type }}" name="probe__{{ st.key }}__{{ field.name }}"
+               value="{{ form.get('probe__' ~ st.key ~ '__' ~ field.name, '') }}"
+               placeholder="{{ field.placeholder }}"
+               class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+        {% endif %}
+        {% if field.help %}
+        <p class="text-xs text-gray-400 mt-1">{{ field.help }}</p>
+        {% endif %}
+      </div>
+      {% endfor %}
+      {% if st.key in ("gitlab_releases", "glpi_rest_api", "atom_feed", "json_api", "html_regex") %}
+      <p class="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
+        This probe contacts a URL you provide, so its host must be listed under Settings &rarr; Trusted Hosts first.
+      </p>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Advanced -->
+  <div class="bg-white rounded-xl border border-gray-100 p-5 space-y-4">
+    <div class="font-semibold text-gray-700">Advanced (optional)</div>
+
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-600 mb-1">Track Branch</label>
+        <input type="text" name="track_branch" value="{{ form.get('track_branch', '') }}"
+               placeholder="e.g. 5.2"
+               class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+        <p class="text-xs text-gray-400 mt-1">Only report updates within this version line (e.g. 5.2.x, ignore 6.x).</p>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-600 mb-1">Check Interval</label>
+        <select name="check_interval_minutes"
+                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+          {% for minutes, label in [(60,"Every hour"),(180,"Every 3 hours"),(360,"Every 6 hours"),(720,"Every 12 hours"),(1440,"Daily")] %}
+          <option value="{{ minutes }}" {% if form.get('check_interval_minutes', '360')|int == minutes %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-gray-600 mb-1">Version Regex Override</label>
+      <input type="text" name="version_pattern" value="{{ form.get('version_pattern', '') }}"
+             placeholder="Leave blank to use the source's default"
+             class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30 font-mono">
+    </div>
+
+    <label class="flex items-center gap-2 text-sm text-gray-600">
+      <input type="checkbox" name="include_prerelease" {% if form.get('include_prerelease') == 'on' %}checked{% endif %}
+             class="rounded border-gray-300 text-puma-primary focus:ring-puma-primary/30">
+      Include pre-releases (rc, beta, alpha)
+    </label>
+  </div>
+
+  <div class="flex items-center gap-3">
+    <button type="submit"
+            class="bg-puma-primary hover:bg-puma-primary-dark text-white font-medium rounded-lg px-5 py-2.5 text-sm transition">
+      Add Application
+    </button>
+    <a href="/" class="text-sm text-gray-500 hover:text-gray-700">Cancel</a>
+  </div>
+</form>
+
+<script>
+  document.getElementById('source_type').addEventListener('change', function () {
+    document.querySelectorAll('.source-fields').forEach(function (el) {
+      el.classList.add('hidden');
+    });
+    var active = document.querySelector('.source-fields[data-source-type="' + this.value + '"]');
+    if (active) active.classList.remove('hidden');
+  });
+
+  document.getElementById('installed_probe').addEventListener('change', function () {
+    document.querySelectorAll('.probe-fields').forEach(function (el) {
+      el.classList.add('hidden');
+    });
+    var active = document.querySelector('.probe-fields[data-probe-type="' + this.value + '"]');
+    if (active) active.classList.remove('hidden');
+  });
+</script>
+{% endblock %}

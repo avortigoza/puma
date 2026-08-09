@@ -259,6 +259,36 @@ class AtomFeed(SourceAdapter):
 
 
 @register
+class LocalFileRegex(SourceAdapter):
+    """Read a version straight off disk - e.g. Moodle's version.php on the
+    same box PUMA runs on. No network call, no auth, nothing to rate-limit.
+    Most reliable of all the adapters when it's an option at all."""
+
+    key = "local_file_regex"
+    label = "Local file (regex)"
+    fields = [
+        Field_("path", "File path",
+               placeholder="/var/www/moodle/public/version.php"),
+        Field_("pattern", "Regex (1 capture group)",
+               placeholder=r"\$release\s*=\s*'([\d.]+)"),
+    ]
+
+    def fetch(self, etag=None, last_modified=None) -> FetchResult:
+        path = self.config["path"]
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as fh:
+                text = fh.read()
+        except OSError as e:
+            raise SourceUnavailable(f"cannot read {path}: {e}") from e
+        found = re.findall(self.config["pattern"], text)
+        rels = [
+            Release(raw_tag=m if isinstance(m, str) else m[0])
+            for m in found
+        ]
+        return FetchResult(rels)
+
+
+@register
 class JsonApi(SourceAdapter):
     """Escape hatch #1: any endpoint returning JSON, plus a dotted path.
     Path supports list indexing: 'releases.0.version' or 'versions[]' ."""
@@ -268,12 +298,20 @@ class JsonApi(SourceAdapter):
     fields = [
         Field_("url", "URL", type="url"),
         Field_("path", "Path to version", placeholder="releases.0.version"),
+        Field_("header_name", "Auth header name", required=False,
+               placeholder="PRIVATE-TOKEN",
+               help="Optional. e.g. PRIVATE-TOKEN for GitLab, Authorization for Bearer tokens."),
+        Field_("header_value", "Auth header value", type="password", required=False),
         Field_("url_template", "Release URL template", required=False,
                placeholder="https://example.org/download/{version}"),
     ]
 
     def fetch(self, etag=None, last_modified=None) -> FetchResult:
-        r = self._get(self.config["url"], etag=etag, last_modified=last_modified)
+        headers = {}
+        if self.config.get("header_name") and self.config.get("header_value"):
+            headers[self.config["header_name"]] = self.config["header_value"]
+        r = self._get(self.config["url"], etag=etag, last_modified=last_modified,
+                      headers=headers)
         if r.status_code == 304:
             return FetchResult(not_modified=True, etag=etag,
                                last_modified=last_modified)
@@ -287,6 +325,55 @@ class JsonApi(SourceAdapter):
         ]
         return FetchResult(rels, r.headers.get("ETag"),
                            r.headers.get("Last-Modified"))
+
+
+@register
+class GlpiRestApi(SourceAdapter):
+    """GLPI's REST API needs a login step (initSession) before ANY other
+    call works - unlike every other adapter here, a single plain GET can't
+    do this. Logs in, reads cfg_glpi.version, then best-effort logs out."""
+
+    key = "glpi_rest_api"
+    label = "GLPI REST API"
+    fields = [
+        Field_("base_url", "GLPI base URL", type="url",
+               placeholder="http://10.0.0.161:8765"),
+        Field_("user_token", "User Token", type="password",
+               help="GLPI: My Settings -> Remote access keys -> API token"),
+        Field_("app_token", "App Token", type="password", required=False,
+               help="Only needed if the matching API client requires one"),
+    ]
+
+    def fetch(self, etag=None, last_modified=None) -> FetchResult:
+        base = self.config["base_url"].rstrip("/")
+        headers = {"Authorization": f"user_token {self.config['user_token']}"}
+        if self.config.get("app_token"):
+            headers["App-Token"] = self.config["app_token"]
+
+        r = self._get(f"{base}/apirest.php/initSession", headers=headers)
+        if r.status_code >= 400:
+            raise SourceUnavailable(f"GLPI initSession failed: {r.text[:200]}")
+        session_token = r.json().get("session_token")
+        if not session_token:
+            raise SourceUnavailable("GLPI initSession did not return a session_token")
+
+        headers2 = {"Session-Token": session_token}
+        if self.config.get("app_token"):
+            headers2["App-Token"] = self.config["app_token"]
+        try:
+            r2 = self._get(f"{base}/apirest.php/getGlpiConfig", headers=headers2)
+            if r2.status_code >= 400:
+                raise SourceUnavailable(f"GLPI getGlpiConfig failed: {r2.text[:200]}")
+            version = (r2.json().get("cfg_glpi") or {}).get("version")
+        finally:
+            try:
+                self._get(f"{base}/apirest.php/killSession", headers=headers2)
+            except SourceUnavailable:
+                pass  # best-effort logout; don't fail the check over this
+
+        if not version:
+            return FetchResult([])
+        return FetchResult([Release(raw_tag=version)])
 
 
 @register
