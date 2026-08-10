@@ -97,7 +97,7 @@ def extract_target_host(source_type: str, config: dict) -> Optional[str]:
     url = None
     if source_type in ("gitlab_releases", "glpi_rest_api"):
         url = config.get("base_url")
-    elif source_type in ("atom_feed", "json_api", "html_regex"):
+    elif source_type in ("atom_feed", "json_api", "html_regex", "http_header"):
         url = config.get("url")
     if not url:
         return None

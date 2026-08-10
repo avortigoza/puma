@@ -328,6 +328,34 @@ class GitLocalTag(SourceAdapter):
 
 
 @register
+class HttpHeader(SourceAdapter):
+    """Read the version straight off an HTTP response header - e.g.
+    XWiki's XWiki-Version header, which its REST API attaches to every
+    response (even to an unauthenticated GET), no JSON parsing or HTML
+    scraping needed."""
+
+    key = "http_header"
+    label = "HTTP response header"
+    fields = [
+        Field_("url", "URL", type="url",
+               placeholder="http://10.0.1.49:8888/rest/"),
+        Field_("header_name", "Header name",
+               placeholder="XWiki-Version"),
+    ]
+
+    def fetch(self, etag=None, last_modified=None) -> FetchResult:
+        r = self._get(self.config["url"], etag=etag, last_modified=last_modified)
+        if r.status_code == 304:
+            return FetchResult(not_modified=True, etag=etag,
+                               last_modified=last_modified)
+        r.raise_for_status()
+        value = r.headers.get(self.config["header_name"])
+        if not value:
+            return FetchResult([])
+        return FetchResult([Release(raw_tag=value)])
+
+
+@register
 class JsonApi(SourceAdapter):
     """Escape hatch #1: any endpoint returning JSON, plus a dotted path.
     Path supports list indexing: 'releases.0.version' or 'versions[]' ."""
