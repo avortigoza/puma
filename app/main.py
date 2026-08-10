@@ -35,6 +35,7 @@ from models import (
     CheckTrigger,
     MonitoredApp,
     Notification,
+    ReleaseObservation,
     Setting,
     User,
 )
@@ -229,23 +230,11 @@ def logout(request: Request):
 # Add Application
 # --------------------------------------------------------------------------
 
-@app.get("/applications/new", response_class=HTMLResponse)
-def new_application_form(request: Request, user: User = Depends(require_login)):
-    return templates.TemplateResponse(
-        request,
-        "add_application.html",
-        {
-            "user": user,
-            "source_types": adapters.catalogue(),
-            "error": None,
-            "form": {},
-        },
-    )
-
-
-@app.post("/applications")
-async def create_application(request: Request, user: User = Depends(require_login)):
-    form = await request.form()
+def parse_application_form(
+    form, session: Session, exclude_app_id: Optional[int] = None
+) -> tuple[dict, list[str]]:
+    """Shared validation for both create and edit - so the two paths can
+    never quietly drift apart. Returns (kwargs_for_MonitoredApp, errors)."""
     name = (form.get("name") or "").strip()
     source_type = form.get("source_type") or ""
 
@@ -264,7 +253,6 @@ async def create_application(request: Request, user: User = Depends(require_logi
             if value:
                 source_config[field.name] = value
 
-    # Installed-version probe is optional - "" means manual entry only.
     installed_probe = form.get("installed_probe") or ""
     installed_probe_config: dict[str, str] = {}
     if installed_probe and installed_probe not in adapters.REGISTRY:
@@ -277,34 +265,200 @@ async def create_application(request: Request, user: User = Depends(require_logi
             if value:
                 installed_probe_config[field.name] = value
 
+    if name and not errors:
+        query = select(MonitoredApp).where(MonitoredApp.name == name)
+        if exclude_app_id is not None:
+            query = query.where(MonitoredApp.id != exclude_app_id)
+        if session.exec(query).first():
+            errors.append("An application with this name already exists.")
+
+    hosts_to_check = []
+    if not errors:
+        h = extract_target_host(source_type, source_config)
+        if h:
+            hosts_to_check.append(h)
+        if installed_probe:
+            h2 = extract_target_host(installed_probe, installed_probe_config)
+            if h2:
+                hosts_to_check.append(h2)
+    if hosts_to_check:
+        trusted = get_trusted_hosts(session)
+        for h in hosts_to_check:
+            if h.lower() not in trusted:
+                errors.append(
+                    f"'{h}' is not in Trusted Hosts. "
+                    f"Add it under Settings before using this source."
+                )
+
+    kwargs = dict(
+        name=name,
+        category=(form.get("category") or "").strip() or None,
+        source_type=source_type,
+        source_config=source_config,
+        version_pattern=(form.get("version_pattern") or "").strip() or None,
+        track_branch=(form.get("track_branch") or "").strip() or None,
+        include_prerelease=form.get("include_prerelease") == "on",
+        installed_probe=installed_probe or None,
+        installed_probe_config=installed_probe_config,
+        instance_url=(form.get("instance_url") or "").strip() or None,
+        installed_version=(form.get("installed_version") or "").strip() or None,
+        check_interval_minutes=int(form.get("check_interval_minutes") or 360),
+    )
+    return kwargs, errors
+
+
+def app_to_form_dict(app_row: MonitoredApp) -> dict:
+    """Reconstruct a form dict from a saved app, for pre-filling the edit form -
+    the mirror image of what the browser would submit."""
+    form: dict = {
+        "name": app_row.name,
+        "category": app_row.category or "",
+        "instance_url": app_row.instance_url or "",
+        "installed_version": app_row.installed_version or "",
+        "source_type": app_row.source_type,
+        "track_branch": app_row.track_branch or "",
+        "check_interval_minutes": str(app_row.check_interval_minutes),
+        "version_pattern": app_row.version_pattern or "",
+        "include_prerelease": "on" if app_row.include_prerelease else "",
+        "installed_probe": app_row.installed_probe or "",
+    }
+    if app_row.source_type in adapters.REGISTRY:
+        for field in adapters.REGISTRY[app_row.source_type].fields:
+            form[f"cfg__{app_row.source_type}__{field.name}"] = (
+                app_row.source_config.get(field.name, "")
+            )
+    if app_row.installed_probe and app_row.installed_probe in adapters.REGISTRY:
+        for field in adapters.REGISTRY[app_row.installed_probe].fields:
+            form[f"probe__{app_row.installed_probe}__{field.name}"] = (
+                app_row.installed_probe_config.get(field.name, "")
+            )
+    return form
+
+
+@app.get("/applications/new", response_class=HTMLResponse)
+def new_application_form(request: Request, user: User = Depends(require_login)):
+    return templates.TemplateResponse(
+        request,
+        "add_application.html",
+        {
+            "user": user,
+            "source_types": adapters.catalogue(),
+            "error": None,
+            "form": {},
+            "editing_app": None,
+        },
+    )
+
+
+def parse_app_form(form) -> tuple[dict, list[str]]:
+    """Parse and validate the Add/Edit Application form. Shared by both
+    routes so a fix to one never silently misses the other."""
+    errors: list[str] = []
+    name = (form.get("name") or "").strip()
+    source_type = form.get("source_type") or ""
+
+    if not name:
+        errors.append("Application name is required.")
+    if source_type not in adapters.REGISTRY:
+        errors.append("Choose a valid update source.")
+
+    source_config: dict[str, str] = {}
+    if source_type in adapters.REGISTRY:
+        for field in adapters.REGISTRY[source_type].fields:
+            value = (form.get(f"cfg__{source_type}__{field.name}") or "").strip()
+            if field.required and not value:
+                errors.append(f"'{field.label}' is required for this source.")
+            if value:
+                source_config[field.name] = value
+
+    installed_probe = form.get("installed_probe") or ""
+    installed_probe_config: dict[str, str] = {}
+    if installed_probe and installed_probe not in adapters.REGISTRY:
+        errors.append("Choose a valid installed-version probe.")
+    elif installed_probe:
+        for field in adapters.REGISTRY[installed_probe].fields:
+            value = (form.get(f"probe__{installed_probe}__{field.name}") or "").strip()
+            if field.required and not value:
+                errors.append(f"'{field.label}' is required for the installed-version probe.")
+            if value:
+                installed_probe_config[field.name] = value
+
+    fields = dict(
+        name=name,
+        category=(form.get("category") or "").strip() or None,
+        source_type=source_type,
+        source_config=source_config,
+        version_pattern=(form.get("version_pattern") or "").strip() or None,
+        track_branch=(form.get("track_branch") or "").strip() or None,
+        include_prerelease=form.get("include_prerelease") == "on",
+        installed_probe=installed_probe or None,
+        installed_probe_config=installed_probe_config,
+        instance_url=(form.get("instance_url") or "").strip() or None,
+        installed_version=(form.get("installed_version") or "").strip() or None,
+        check_interval_minutes=int(form.get("check_interval_minutes") or 360),
+    )
+    return fields, errors
+
+
+def validate_trusted_hosts(session: Session, fields: dict, errors: list[str]) -> None:
+    """Shared trusted-host check for both create and edit."""
+    if errors:
+        return
+    hosts_to_check = []
+    h = extract_target_host(fields["source_type"], fields["source_config"])
+    if h:
+        hosts_to_check.append(h)
+    if fields["installed_probe"]:
+        h2 = extract_target_host(fields["installed_probe"], fields["installed_probe_config"])
+        if h2:
+            hosts_to_check.append(h2)
+    if hosts_to_check:
+        trusted = get_trusted_hosts(session)
+        for h in hosts_to_check:
+            if h.lower() not in trusted:
+                errors.append(
+                    f"'{h}' is not in Trusted Hosts. "
+                    f"Add it under Settings before using this source."
+                )
+
+
+def app_to_form_dict(app_row: MonitoredApp) -> dict:
+    """Flatten a saved MonitoredApp back into the same shape the Add/Edit
+    form's fields use, so the edit form can be pre-filled."""
+    d = {
+        "name": app_row.name,
+        "category": app_row.category or "",
+        "instance_url": app_row.instance_url or "",
+        "installed_version": app_row.installed_version or "",
+        "source_type": app_row.source_type,
+        "track_branch": app_row.track_branch or "",
+        "check_interval_minutes": str(app_row.check_interval_minutes),
+        "version_pattern": app_row.version_pattern or "",
+        "include_prerelease": "on" if app_row.include_prerelease else "",
+        "installed_probe": app_row.installed_probe or "",
+    }
+    for k, v in (app_row.source_config or {}).items():
+        d[f"cfg__{app_row.source_type}__{k}"] = v
+    if app_row.installed_probe:
+        for k, v in (app_row.installed_probe_config or {}).items():
+            d[f"probe__{app_row.installed_probe}__{k}"] = v
+    return d
+
+
+@app.post("/applications")
+async def create_application(request: Request, user: User = Depends(require_login)):
+    form = await request.form()
+    fields, errors = parse_app_form(form)
+
     with Session(engine) as session:
-        if name and not errors:
+        if fields["name"] and not errors:
             existing = session.exec(
-                select(MonitoredApp).where(MonitoredApp.name == name)
+                select(MonitoredApp).where(MonitoredApp.name == fields["name"])
             ).first()
             if existing:
                 errors.append("An application with this name already exists.")
 
-        # Trusted-hosts check applies to BOTH the update source and the
-        # installed-version probe, since either can be pointed at an
-        # arbitrary URL (local_file_regex is exempt - it never leaves disk).
-        hosts_to_check = []
-        if not errors:
-            h = extract_target_host(source_type, source_config)
-            if h:
-                hosts_to_check.append(h)
-            if installed_probe:
-                h2 = extract_target_host(installed_probe, installed_probe_config)
-                if h2:
-                    hosts_to_check.append(h2)
-        if hosts_to_check:
-            trusted = get_trusted_hosts(session)
-            for h in hosts_to_check:
-                if h.lower() not in trusted:
-                    errors.append(
-                        f"'{h}' is not in Trusted Hosts. "
-                        f"Add it under Settings before using this source."
-                    )
+        validate_trusted_hosts(session, fields, errors)
 
         if errors:
             return templates.TemplateResponse(
@@ -315,38 +469,109 @@ async def create_application(request: Request, user: User = Depends(require_logi
                     "source_types": adapters.catalogue(),
                     "error": " ".join(errors),
                     "form": dict(form),
+                    "editing_app": None,
                 },
                 status_code=400,
             )
 
-        slug = slugify(name)
+        slug = slugify(fields["name"])
         base_slug, i = slug, 2
         while session.exec(select(MonitoredApp).where(MonitoredApp.slug == slug)).first():
             slug = f"{base_slug}-{i}"
             i += 1
 
-        row = MonitoredApp(
-            name=name,
-            slug=slug,
-            category=(form.get("category") or "").strip() or None,
-            source_type=source_type,
-            source_config=source_config,
-            version_pattern=(form.get("version_pattern") or "").strip() or None,
-            track_branch=(form.get("track_branch") or "").strip() or None,
-            include_prerelease=form.get("include_prerelease") == "on",
-            installed_probe=installed_probe or None,
-            installed_probe_config=installed_probe_config,
-            instance_url=(form.get("instance_url") or "").strip() or None,
-            installed_version=(form.get("installed_version") or "").strip() or None,
-            check_interval_minutes=int(form.get("check_interval_minutes") or 360),
-        )
+        row = MonitoredApp(slug=slug, **fields)
         session.add(row)
         session.commit()
 
     return RedirectResponse("/", status_code=303)
 
 
+@app.get("/applications/{app_id}/edit", response_class=HTMLResponse)
+def edit_application_form(app_id: int, request: Request, user: User = Depends(require_login)):
+    with Session(engine) as session:
+        app_row = session.get(MonitoredApp, app_id)
+        if not app_row:
+            return RedirectResponse("/", status_code=303)
+        form_dict = app_to_form_dict(app_row)
+
+    return templates.TemplateResponse(
+        request,
+        "add_application.html",
+        {
+            "user": user,
+            "source_types": adapters.catalogue(),
+            "error": None,
+            "form": form_dict,
+            "editing_app": app_row,
+        },
+    )
+
+
+@app.post("/applications/{app_id}/edit")
+async def update_application(app_id: int, request: Request, user: User = Depends(require_login)):
+    form = await request.form()
+    fields, errors = parse_app_form(form)
+
+    with Session(engine) as session:
+        app_row = session.get(MonitoredApp, app_id)
+        if not app_row:
+            return RedirectResponse("/", status_code=303)
+
+        if fields["name"] and not errors:
+            existing = session.exec(
+                select(MonitoredApp).where(
+                    MonitoredApp.name == fields["name"], MonitoredApp.id != app_id
+                )
+            ).first()
+            if existing:
+                errors.append("An application with this name already exists.")
+
+        validate_trusted_hosts(session, fields, errors)
+
+        if errors:
+            return templates.TemplateResponse(
+                request,
+                "add_application.html",
+                {
+                    "user": user,
+                    "source_types": adapters.catalogue(),
+                    "error": " ".join(errors),
+                    "form": dict(form),
+                    "editing_app": app_row,
+                },
+                status_code=400,
+            )
+
+        for key, value in fields.items():
+            setattr(app_row, key, value)
+        app_row.updated_at = datetime.now(timezone.utc)
+        session.add(app_row)
+        session.commit()
+
+    return RedirectResponse("/", status_code=303)
+
+
+@app.post("/applications/{app_id}/delete")
+def delete_application(app_id: int, user: User = Depends(require_login)):
+    with Session(engine) as session:
+        app_row = session.get(MonitoredApp, app_id)
+        if app_row:
+            for obs in session.exec(
+                select(ReleaseObservation).where(ReleaseObservation.app_id == app_id)
+            ).all():
+                session.delete(obs)
+            for notif in session.exec(
+                select(Notification).where(Notification.app_id == app_id)
+            ).all():
+                session.delete(notif)
+            session.delete(app_row)
+            session.commit()
+    return RedirectResponse("/", status_code=303)
+
+
 # --------------------------------------------------------------------------
+# Check Updates# --------------------------------------------------------------------------
 # Check Updates
 # --------------------------------------------------------------------------
 

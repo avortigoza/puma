@@ -169,10 +169,22 @@ bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
                 {{ icon("refresh", "w-4 h-4") }}
               </button>
             </form>
-            <button type="button" title="More actions"
-                    class="w-8 h-8 rounded-lg bg-puma-primary-light text-puma-primary flex items-center justify-center hover:bg-puma-primary/20">
-              {{ icon("more-vertical", "w-4 h-4") }}
-            </button>
+            <div class="relative">
+              <button type="button" title="More actions"
+                      onclick="togglePumaMenu(event, 'menu-{{ app.id }}')"
+                      class="w-8 h-8 rounded-lg bg-puma-primary-light text-puma-primary flex items-center justify-center hover:bg-puma-primary/20">
+                {{ icon("more-vertical", "w-4 h-4") }}
+              </button>
+              <div id="menu-{{ app.id }}" class="puma-app-menu hidden absolute right-0 mt-1 w-32 bg-white rounded-lg border border-gray-100 shadow-lg z-10 py-1 text-left">
+                <a href="/applications/{{ app.id }}/edit"
+                   class="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">Edit</a>
+                <form method="post" action="/applications/{{ app.id }}/delete"
+                      onsubmit="return confirm('Delete {{ app.name }}? This cannot be undone.');">
+                  <button type="submit"
+                          class="w-full text-left px-3 py-2 text-sm text-puma-red hover:bg-red-50">Delete</button>
+                </form>
+              </div>
+            </div>
           </div>
         </td>
       </tr>
@@ -263,4 +275,18 @@ bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
     </div>
   </div>
 </div>
+<script>
+  function togglePumaMenu(event, menuId) {
+    event.stopPropagation();
+    document.querySelectorAll('.puma-app-menu').forEach(function (m) {
+      if (m.id !== menuId) m.classList.add('hidden');
+    });
+    document.getElementById(menuId).classList.toggle('hidden');
+  }
+  document.addEventListener('click', function () {
+    document.querySelectorAll('.puma-app-menu').forEach(function (m) {
+      m.classList.add('hidden');
+    });
+  });
+</script>
 {% endblock %}

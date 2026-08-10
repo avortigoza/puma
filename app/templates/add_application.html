@@ -5,15 +5,15 @@
 
 <div class="max-w-2xl mx-auto mb-6">
   <a href="/" class="text-sm text-gray-400 hover:text-puma-primary">&larr; Back to Dashboard</a>
-  <h1 class="text-2xl font-bold text-gray-800 mt-2">Add Application</h1>
-  <p class="text-gray-400 text-sm mt-1">Register a new app to monitor for updates.</p>
+  <h1 class="text-2xl font-bold text-gray-800 mt-2">{% if editing_app %}Edit {{ editing_app.name }}{% else %}Add Application{% endif %}</h1>
+  <p class="text-gray-400 text-sm mt-1">{% if editing_app %}Update this application's monitoring settings.{% else %}Register a new app to monitor for updates.{% endif %}</p>
 </div>
 
 {% if error %}
 <div class="max-w-2xl mx-auto bg-red-50 text-puma-red text-sm rounded-lg px-4 py-3 mb-4">{{ error }}</div>
 {% endif %}
 
-<form method="post" action="/applications" class="max-w-2xl mx-auto space-y-6">
+<form method="post" action="{% if editing_app %}/applications/{{ editing_app.id }}/edit{% else %}/applications{% endif %}" class="max-w-2xl mx-auto space-y-6">
 
   <!-- App details -->
   <div class="bg-white rounded-xl border border-gray-100 p-5 space-y-4">
@@ -64,7 +64,7 @@
     </div>
 
     {% for st in source_types %}
-    <div class="source-fields space-y-4 {% if not loop.first and form.get('source_type', source_types[0].key) != st.key %}hidden{% endif %}"
+    <div class="source-fields space-y-4 {% if form.get('source_type', source_types[0].key) != st.key %}hidden{% endif %}"
          data-source-type="{{ st.key }}">
       {% for field in st.fields %}
       <div>
@@ -198,7 +198,7 @@
   <div class="flex items-center gap-3">
     <button type="submit"
             class="bg-puma-primary hover:bg-puma-primary-dark text-white font-medium rounded-lg px-5 py-2.5 text-sm transition">
-      Add Application
+      {% if editing_app %}Save Changes{% else %}Add Application{% endif %}
     </button>
     <a href="/" class="text-sm text-gray-500 hover:text-gray-700">Cancel</a>
   </div>
