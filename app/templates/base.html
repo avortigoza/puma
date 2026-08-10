@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}PUMA{% endblock %} - Program Update Monitoring Assistant</title>
+  <link rel="icon" type="image/png" href="/static/img/favicon.png">
   <link rel="stylesheet" href="/static/css/output.css">
 </head>
 <body class="bg-puma-bg text-gray-800 antialiased">
@@ -48,8 +49,8 @@
   <!-- Sidebar -->
   <aside class="w-60 shrink-0 bg-puma-sidebar-bg border-r border-gray-100 flex flex-col sticky top-0 h-screen overflow-y-auto">
     <div class="px-5 py-6 flex items-center gap-2">
-      <div class="w-9 h-9 rounded-lg bg-puma-primary/10 flex items-center justify-center">
-        <span class="text-puma-primary font-bold text-lg">P</span>
+      <div class="w-9 h-9 rounded-lg bg-puma-primary/10 flex items-center justify-center overflow-hidden">
+        <img src="/static/img/logo-badge.png" alt="PUMA" class="w-full h-full object-contain">
       </div>
       <div>
         <div class="font-extrabold text-puma-primary leading-tight tracking-wide">PUMA</div>
@@ -80,7 +81,7 @@
     </nav>
 
     <div class="m-4 rounded-xl bg-puma-primary-light p-4 text-center">
-      <div class="text-2xl mb-1">🐾</div>
+      <img src="/static/img/logo-footer.png" alt="PUMA" class="w-16 h-16 mx-auto mb-1 object-contain">
       <div class="font-extrabold text-puma-primary text-sm">PUMA</div>
       <div class="text-xs text-gray-500 mt-1">Stay current. Stay secure.</div>
       <div class="text-[10px] text-gray-400 mt-2">v1.0.0</div>
