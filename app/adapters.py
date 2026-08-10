@@ -289,6 +289,45 @@ class LocalFileRegex(SourceAdapter):
 
 
 @register
+class GitLocalTag(SourceAdapter):
+    """Read the checked-out release straight off a local git clone - e.g.
+    shelf.nu deployed as a bare `git clone` + `git pull` on this box, no
+    Docker involved. Uses `git describe --tags` so it still resolves a base
+    version even when HEAD is sitting N commits ahead of the last tag
+    (tracking `main` instead of pinned to an exact release). The safe.directory
+    override is passed inline (not written to global git config) so this
+    works regardless of which OS user owns the checkout."""
+
+    key = "git_local_tag"
+    label = "Local git checkout"
+    fields = [
+        Field_("path", "Repository path",
+               placeholder="/var/www/shelf.nu",
+               help="Directory containing the .git folder"),
+    ]
+
+    def fetch(self, etag=None, last_modified=None) -> FetchResult:
+        import subprocess
+        path = self.config["path"]
+        try:
+            proc = subprocess.run(
+                ["git", "-c", f"safe.directory={path}", "-C", path,
+                 "describe", "--tags"],
+                capture_output=True, text=True, timeout=10, check=False,
+            )
+        except OSError as e:
+            raise SourceUnavailable(f"git not available: {e}") from e
+        if proc.returncode != 0:
+            raise SourceUnavailable(
+                f"git describe failed in {path}: {proc.stderr.strip()[:200]}"
+            )
+        tag = proc.stdout.strip()
+        if not tag:
+            return FetchResult([])
+        return FetchResult([Release(raw_tag=tag)])
+
+
+@register
 class JsonApi(SourceAdapter):
     """Escape hatch #1: any endpoint returning JSON, plus a dotted path.
     Path supports list indexing: 'releases.0.version' or 'versions[]' ."""
