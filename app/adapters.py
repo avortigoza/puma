@@ -483,9 +483,20 @@ def _iso(value: Optional[str]) -> Optional[datetime]:
 
 
 def _struct(value) -> Optional[datetime]:
+    """feedparser's published_parsed can be a degenerate struct_time
+    (e.g. year 1) for an entry whose date string it couldn't fully
+    parse, instead of returning None outright. Trusting that blindly
+    means a bogus date like "Jan 1, 1" ends up stored as if it were
+    real - reject anything implausibly old instead."""
     if not value:
         return None
-    return datetime(*value[:6])
+    try:
+        dt = datetime(*value[:6])
+    except (ValueError, TypeError):
+        return None
+    if dt.year < 1990:
+        return None
+    return dt
 
 
 def _dig(data: Any, path: str) -> list[Any]:
