@@ -93,10 +93,6 @@
   <div class="flex-1 flex flex-col min-w-0">
     <!-- Topbar -->
     <header class="h-16 bg-white border-b border-gray-100 flex items-center justify-end gap-6 px-6">
-      <div class="flex items-center gap-2 text-sm text-gray-400 whitespace-nowrap">
-        {{ icon("refresh", "w-4 h-4") }}
-        <span>Last checked: {{ last_checked | timeago if last_checked is defined else "Never" }}</span>
-      </div>
       <a href="#" class="relative text-gray-400 hover:text-gray-600">
         {{ icon("bell", "w-5 h-5") }}
         {% if unread_notifications is defined and unread_notifications > 0 %}

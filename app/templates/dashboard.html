@@ -71,7 +71,8 @@ bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
     </div>
     <div>
       <div class="text-xs text-gray-400">Last Check</div>
-      <div class="text-2xl font-bold">{{ last_checked | timeago }}</div>
+      <div id="last-check-text" class="text-2xl font-bold"
+           data-last-checked="{{ last_checked.isoformat() if last_checked else '' }}">{{ last_checked | timeago }}</div>
     </div>
   </div>
 </div>
@@ -301,5 +302,30 @@ bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
       m.classList.add('hidden');
     });
   });
+
+  // Keep "Last Check" ticking live in the browser (e.g. "17 hours ago" ->
+  // "18 hours ago") without needing a full page reload. Mirrors the same
+  // wording buckets as the server-side timeago filter in main.py.
+  function formatTimeAgo(isoString) {
+    var then = new Date(isoString);
+    var seconds = Math.floor((Date.now() - then.getTime()) / 1000);
+    if (seconds < 60) return "just now";
+    var minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return minutes + " minute" + (minutes !== 1 ? "s" : "") + " ago";
+    var hours = Math.floor(minutes / 60);
+    if (hours < 24) return hours + " hour" + (hours !== 1 ? "s" : "") + " ago";
+    var days = Math.floor(hours / 24);
+    return days + " day" + (days !== 1 ? "s" : "") + " ago";
+  }
+
+  (function () {
+    var el = document.getElementById('last-check-text');
+    if (!el) return;
+    var iso = el.getAttribute('data-last-checked');
+    if (!iso) return; // "Never" - nothing to tick
+    setInterval(function () {
+      el.textContent = formatTimeAgo(iso);
+    }, 30000);
+  })();
 </script>
 {% endblock %}
