@@ -223,7 +223,7 @@ bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
       </thead>
       <tbody>
         {% for run in recent_runs %}
-        <tr class="border-b border-gray-100 h-10">
+        <tr class="border-b border-gray-100 h-10 cursor-pointer hover:bg-gray-50" onclick="window.location.href='/history#run-{{ run.id }}'">
           <td class="px-4 align-middle text-gray-600 whitespace-nowrap">{{ run.started_at.strftime("%b %d, %Y %I:%M %p") }}</td>
           <td class="px-4 align-middle text-gray-400 whitespace-nowrap">{{ run.trigger.value | capitalize }} Check</td>
           <td class="px-4 align-middle">

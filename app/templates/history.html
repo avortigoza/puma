@@ -22,7 +22,7 @@
     </thead>
     <tbody>
       {% for run in runs %}
-      <tr class="border-b border-gray-100 cursor-pointer hover:bg-gray-50" onclick="toggleHistoryRow({{ run.id }})">
+      <tr id="run-{{ run.id }}" class="border-b border-gray-100 cursor-pointer hover:bg-gray-50" onclick="toggleHistoryRow({{ run.id }})">
         <td class="px-4 py-2.5 text-gray-600 whitespace-nowrap">{{ run.started_at.strftime("%b %d, %Y %I:%M %p") }}</td>
         <td class="px-4 py-2.5 text-gray-400 whitespace-nowrap">{{ run.trigger.value | capitalize }} Check</td>
         <td class="px-4 py-2.5">
@@ -111,5 +111,20 @@
   function toggleHistoryRow(runId) {
     document.getElementById('history-detail-' + runId).classList.toggle('hidden');
   }
+
+  // Arriving from a "View details" link elsewhere (e.g. the Dashboard's
+  // Recent Check History) via a #run-<id> anchor: auto-expand that run's
+  // detail row and scroll to it, instead of leaving the person to find
+  // and click it themselves.
+  document.addEventListener('DOMContentLoaded', function () {
+    var hash = window.location.hash;
+    var match = hash.match(/^#run-(\d+)$/);
+    if (!match) return;
+    var runId = match[1];
+    var detailRow = document.getElementById('history-detail-' + runId);
+    var summaryRow = document.getElementById('run-' + runId);
+    if (detailRow) detailRow.classList.remove('hidden');
+    if (summaryRow) summaryRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
 </script>
 {% endblock %}
