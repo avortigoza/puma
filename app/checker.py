@@ -24,7 +24,13 @@ from models import (
     MonitoredApp,
     Notification,
     ReleaseObservation,
+    Setting,
 )
+
+
+def _notifications_enabled(session: Session) -> bool:
+    row = session.get(Setting, "notifications_enabled")
+    return row.value == "true" if row else True  # same default as main.py's get_setting
 
 
 def check_app(app_row: MonitoredApp, client: httpx.Client) -> ReleaseObservation:
@@ -137,6 +143,7 @@ def run_check(
     prior_versions = {a.id: a.latest_version for a in app_rows}
     updates_found = 0
     errors = 0
+    notifications_enabled = _notifications_enabled(session)
 
     with httpx.Client(follow_redirects=True, timeout=timeout_seconds) as client:
         for app_row in app_rows:
@@ -172,13 +179,30 @@ def run_check(
             if obs.status == CheckStatus.error:
                 errors += 1
 
+            if is_new and app_row.installed_version and versioning.is_newer(
+                obs.version, app_row.installed_version
+            ):
+                updates_found += 1
+
+            # Independent of is_new (which only means "this run's result
+            # differs from last run's") - this instead asks "is there a
+            # newer version than what's installed that we haven't actually
+            # notified about yet." Keeping these separate matters: if
+            # notifications were off when an update was first found,
+            # is_new would already be false on every later check (nothing
+            # about the result has changed since), so gating on is_new
+            # here would mean re-enabling the setting never catches up on
+            # what was missed. This runs the same check on every pass
+            # regardless, so the very next check after re-enabling queues
+            # the notification that was skipped while off.
             if (
-                is_new
+                obs.status == CheckStatus.ok
+                and obs.version
                 and app_row.installed_version
                 and versioning.is_newer(obs.version, app_row.installed_version)
                 and app_row.notified_version != obs.version
+                and notifications_enabled
             ):
-                updates_found += 1
                 session.add(Notification(
                     app_id=app_row.id,
                     message=f"{app_row.name} has a new release available: {obs.version}",

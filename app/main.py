@@ -914,3 +914,85 @@ async def update_settings(request: Request, user: User = Depends(require_login))
         session.commit()
 
     return RedirectResponse("/settings?saved=1", status_code=303)
+
+
+NOTIFICATIONS_PAGE_SIZE = 20
+
+
+@app.get("/notifications", response_class=HTMLResponse)
+def notifications_page(request: Request, page: int = 1, user: User = Depends(require_login)):
+    with Session(engine) as session:
+        total_notifs = session.exec(
+            select(func.count()).select_from(Notification)
+        ).one()
+        total_pages = max(1, (total_notifs + NOTIFICATIONS_PAGE_SIZE - 1) // NOTIFICATIONS_PAGE_SIZE)
+        page = max(1, min(page, total_pages))
+
+        notifs = session.exec(
+            select(Notification)
+            .order_by(Notification.created_at.desc())
+            .offset((page - 1) * NOTIFICATIONS_PAGE_SIZE)
+            .limit(NOTIFICATIONS_PAGE_SIZE)
+        ).all()
+
+        app_ids = {n.app_id for n in notifs if n.app_id}
+        apps_by_id = (
+            {
+                a.id: a
+                for a in session.exec(
+                    select(MonitoredApp).where(MonitoredApp.id.in_(app_ids))
+                ).all()
+            }
+            if app_ids
+            else {}
+        )
+
+    return templates.TemplateResponse(
+        request,
+        "notifications.html",
+        {
+            "user": user,
+            "notifs": notifs,
+            "apps_by_id": apps_by_id,
+            "page": page,
+            "total_pages": total_pages,
+            "total_notifs": total_notifs,
+        },
+    )
+
+
+@app.post("/notifications/{notification_id}/read")
+def mark_notification_read(
+    notification_id: int,
+    next: Optional[str] = Form(default="/notifications"),
+    user: User = Depends(require_login),
+):
+    with Session(engine) as session:
+        notif = session.get(Notification, notification_id)
+        if notif:
+            notif.read = True
+            session.add(notif)
+            session.commit()
+    return RedirectResponse(
+        next if next and next.startswith("/notifications") else "/notifications",
+        status_code=303,
+    )
+
+
+@app.post("/notifications/mark-all-read")
+def mark_all_notifications_read(
+    next: Optional[str] = Form(default="/notifications"),
+    user: User = Depends(require_login),
+):
+    with Session(engine) as session:
+        unread = session.exec(
+            select(Notification).where(Notification.read == False)  # noqa: E712
+        ).all()
+        for notif in unread:
+            notif.read = True
+            session.add(notif)
+        session.commit()
+    return RedirectResponse(
+        next if next and next.startswith("/notifications") else "/notifications",
+        status_code=303,
+    )

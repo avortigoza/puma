@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Notifications{% endblock %}
+{% block content %}
+{% from "base.html" import icon %}
+
+<div class="mb-6 flex items-start justify-between">
+  <div>
+    <a href="/" class="text-sm text-gray-400 hover:text-puma-primary">&larr; Back to Dashboard</a>
+    <h1 class="text-2xl font-bold text-gray-800 mt-2">Notifications</h1>
+    <p class="text-gray-400 text-sm mt-1">{{ total_notifs }} total, newest first.</p>
+  </div>
+  {% if notifs %}
+  <form method="post" action="/notifications/mark-all-read">
+    <input type="hidden" name="next" value="/notifications{% if page > 1 %}?page={{ page }}{% endif %}">
+    <button type="submit" class="text-sm text-puma-primary font-medium hover:underline">Mark all as read</button>
+  </form>
+  {% endif %}
+</div>
+
+<div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
+  {% if notifs %}
+  <div class="divide-y divide-gray-100">
+    {% for n in notifs %}
+    <div class="flex items-center justify-between gap-4 px-5 py-3 {% if not n.read %}bg-puma-primary-light/40{% endif %}">
+      <div class="flex items-start gap-3 min-w-0">
+        <span class="mt-1.5 w-2 h-2 rounded-full shrink-0 {% if not n.read %}bg-puma-primary{% else %}bg-transparent{% endif %}"></span>
+        <div class="min-w-0">
+          <div class="text-sm text-gray-800">{{ n.message }}</div>
+          <div class="text-xs text-gray-400 mt-0.5">
+            {% if n.app_id in apps_by_id %}{{ apps_by_id[n.app_id].name }} &middot; {% endif %}{{ n.created_at | localdatetime }}
+          </div>
+        </div>
+      </div>
+      {% if not n.read %}
+      <form method="post" action="/notifications/{{ n.id }}/read" class="shrink-0">
+        <input type="hidden" name="next" value="/notifications{% if page > 1 %}?page={{ page }}{% endif %}">
+        <button type="submit" class="text-xs text-puma-primary font-medium hover:underline whitespace-nowrap">Mark as read</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if total_pages > 1 %}
+  <div class="flex items-center justify-between px-5 py-3 border-t border-gray-100 text-sm">
+    <span class="text-gray-400">Page {{ page }} of {{ total_pages }}</span>
+    <div class="flex items-center gap-2">
+      {% if page > 1 %}
+      <a href="/notifications?page={{ page - 1 }}" class="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">Previous</a>
+      {% else %}
+      <span class="px-3 py-1.5 rounded-lg border border-gray-100 text-gray-300">Previous</span>
+      {% endif %}
+      {% if page < total_pages %}
+      <a href="/notifications?page={{ page + 1 }}" class="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">Next</a>
+      {% else %}
+      <span class="px-3 py-1.5 rounded-lg border border-gray-100 text-gray-300">Next</span>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div class="text-center py-16">
+    {{ icon("bell", "w-8 h-8 text-gray-200 mx-auto mb-2") }}
+    <p class="text-sm text-gray-400">No notifications yet.</p>
+    <p class="text-xs text-gray-300 mt-1">You'll see something here when a monitored app has a genuinely newer version available.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

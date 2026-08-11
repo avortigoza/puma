@@ -64,7 +64,7 @@
         ("grid", "Applications", "/applications"),
         ("refresh", "Check Updates", "#"),
         ("clock", "History", "/history"),
-        ("bell", "Notifications", "#"),
+        ("bell", "Notifications", "/notifications"),
         ("settings", "Settings", "/settings"),
         ("monitor", "System Info", "#"),
         ("info", "About", "#"),
@@ -93,7 +93,7 @@
   <div class="flex-1 flex flex-col min-w-0">
     <!-- Topbar -->
     <header class="h-16 bg-white border-b border-gray-100 flex items-center justify-end gap-6 px-6">
-      <a href="#" class="relative text-gray-400 hover:text-gray-600">
+      <a href="/notifications" class="relative text-gray-400 hover:text-gray-600">
         {{ icon("bell", "w-5 h-5") }}
         {% if unread_notifications is defined and unread_notifications > 0 %}
         <span class="absolute -top-1.5 -right-1.5 bg-puma-primary text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center">{{ unread_notifications }}</span>
