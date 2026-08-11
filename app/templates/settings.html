@@ -85,6 +85,24 @@
     <p class="text-xs text-gray-400">
       The Applications table is always available on its own page via the sidebar. Turn this off to keep the Dashboard to just the summary cards and recent activity.
     </p>
+    {% if all_apps %}
+    <div class="pt-2 border-t border-gray-100">
+      <p class="text-sm font-medium text-gray-600 mb-2">Which applications show in that table</p>
+      <div class="space-y-1.5 max-h-48 overflow-y-auto">
+        {% for a in all_apps %}
+        <label class="flex items-center gap-2 text-sm text-gray-600">
+          <input type="checkbox" name="dashboard_visible_app_ids" value="{{ a.id }}"
+                 {% if a.id in dashboard_visible_ids %}checked{% endif %}
+                 class="rounded border-gray-300 text-puma-primary focus:ring-puma-primary/30">
+          {{ a.name }}
+        </label>
+        {% endfor %}
+      </div>
+      <p class="text-xs text-gray-400 mt-2">
+        Only affects the Dashboard's table above - the standalone Applications page always shows everything. A newly-added application won't appear here automatically; come back and check it once it's added.
+      </p>
+    </div>
+    {% endif %}
   </div>
 
   <div class="bg-white rounded-xl border border-gray-100 p-5 space-y-4">

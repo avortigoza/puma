@@ -103,6 +103,30 @@ def get_trusted_hosts(session: Session) -> list[str]:
     return [h.strip().lower() for h in raw.split(",") if h.strip()]
 
 
+def get_dashboard_visible_app_ids(session: Session) -> Optional[set[int]]:
+    """None means 'show all' (the default, and also what an empty setting
+    means) - a real set means only those app IDs should appear in the
+    Dashboard's Applications table. Doesn't affect the KPI counts or the
+    standalone /applications page, which always reflect every app."""
+    raw = get_setting(session, "dashboard_visible_app_ids", "")
+    if not raw.strip():
+        return None
+    return {int(x) for x in raw.split(",") if x.strip().isdigit()}
+
+
+SAFE_REDIRECT_PATHS = {"/", "/applications"}
+
+
+def safe_redirect_target(next_value: Optional[str]) -> str:
+    """Only ever redirect to a known internal page - never trust an
+    arbitrary value from a form field as a redirect target (open-redirect
+    risk), even though today's callers only ever send "/" or
+    "/applications"."""
+    if next_value in SAFE_REDIRECT_PATHS:
+        return next_value
+    return "/"
+
+
 def slugify(value: str) -> str:
     slug = re.sub(r"[^a-zA-Z0-9]+", "-", value.strip().lower()).strip("-")
     return slug or "app"
@@ -605,7 +629,11 @@ async def update_application(app_id: int, request: Request, user: User = Depends
 
 
 @app.post("/applications/{app_id}/delete")
-def delete_application(app_id: int, user: User = Depends(require_login)):
+def delete_application(
+    app_id: int,
+    next: Optional[str] = Form(default="/"),
+    user: User = Depends(require_login),
+):
     with Session(engine) as session:
         app_row = session.get(MonitoredApp, app_id)
         if app_row:
@@ -619,7 +647,7 @@ def delete_application(app_id: int, user: User = Depends(require_login)):
                 session.delete(notif)
             session.delete(app_row)
             session.commit()
-    return RedirectResponse("/", status_code=303)
+    return RedirectResponse(safe_redirect_target(next), status_code=303)
 
 
 # --------------------------------------------------------------------------
@@ -635,10 +663,14 @@ def check_all(user: User = Depends(require_login)):
 
 
 @app.post("/applications/{app_id}/check")
-def check_one(app_id: int, user: User = Depends(require_login)):
+def check_one(
+    app_id: int,
+    next: Optional[str] = Form(default="/"),
+    user: User = Depends(require_login),
+):
     with Session(engine) as session:
         checker.run_check(session, CheckTrigger.manual, app_ids=[app_id])
-    return RedirectResponse("/", status_code=303)
+    return RedirectResponse(safe_redirect_target(next), status_code=303)
 
 
 # --------------------------------------------------------------------------
@@ -689,12 +721,17 @@ def dashboard(request: Request, user: User = Depends(require_login)):
             == "true"
         )
 
+        visible_ids = get_dashboard_visible_app_ids(session)
+        dashboard_table_apps = (
+            apps if visible_ids is None else [a for a in apps if a.id in visible_ids]
+        )
+
     return templates.TemplateResponse(
         request,
         "dashboard.html",
         {
             "user": user,
-            "apps": apps,
+            "apps": dashboard_table_apps,
             "total": total,
             "updates_available": updates_available,
             "up_to_date": up_to_date,
@@ -785,10 +822,21 @@ def settings_page(request: Request, saved: int = 0, user: User = Depends(require
                 session, "dashboard_show_applications_table", "true"
             ),
         }
+        all_apps = session.exec(select(MonitoredApp).order_by(MonitoredApp.name)).all()
+        visible_ids = get_dashboard_visible_app_ids(session)
     return templates.TemplateResponse(
         request,
         "settings.html",
-        {"user": user, "current": current, "saved": bool(saved)},
+        {
+            "user": user,
+            "current": current,
+            "saved": bool(saved),
+            "all_apps": all_apps,
+            # None means "show all" - every checkbox should render checked
+            "dashboard_visible_ids": (
+                {a.id for a in all_apps} if visible_ids is None else visible_ids
+            ),
+        },
     )
 
 
@@ -816,6 +864,14 @@ async def update_settings(request: Request, user: User = Depends(require_login))
     dashboard_show_applications_table = (
         "true" if form.get("dashboard_show_applications_table") == "on" else "false"
     )
+    # Whatever's checked at save time, stored literally - if every app is
+    # checked that's functionally "show all" today, but a NEW app added
+    # later won't auto-appear until it's explicitly checked here too.
+    # Predictable > magic: no special-casing "all checked" back to an
+    # empty/show-all sentinel.
+    dashboard_visible_app_ids = ",".join(
+        form.getlist("dashboard_visible_app_ids")
+    )
     trusted_hosts_raw = str(form.get("trusted_hosts", ""))
     hosts = [h.strip().lower() for h in trusted_hosts_raw.splitlines() if h.strip()]
     # de-duplicate while preserving order, so repeated pastes don't grow forever
@@ -837,6 +893,7 @@ async def update_settings(request: Request, user: User = Depends(require_login))
             "dashboard_show_applications_table",
             dashboard_show_applications_table,
         )
+        set_setting(session, "dashboard_visible_app_ids", dashboard_visible_app_ids)
         session.commit()
 
     return RedirectResponse("/settings?saved=1", status_code=303)

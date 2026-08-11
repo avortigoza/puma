@@ -89,6 +89,7 @@
         <td class="px-5 py-3">
           <div class="flex items-center gap-1.5">
             <form method="post" action="/applications/{{ app.id }}/check">
+              <input type="hidden" name="next" value="{{ request.url.path }}">
               <button type="submit" title="Check now"
                       class="w-8 h-8 rounded-lg bg-puma-primary-light text-puma-primary flex items-center justify-center hover:bg-puma-primary/20">
                 {{ icon("refresh", "w-4 h-4") }}
@@ -105,6 +106,7 @@
                    class="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">Edit</a>
                 <form method="post" action="/applications/{{ app.id }}/delete"
                       onsubmit="return confirm('Delete {{ app.name }}? This cannot be undone.');">
+                  <input type="hidden" name="next" value="{{ request.url.path }}">
                   <button type="submit"
                           class="w-full text-left px-3 py-2 text-sm text-puma-red hover:bg-red-50">Delete</button>
                 </form>
