@@ -122,7 +122,25 @@ def run_check(
 
     with httpx.Client(follow_redirects=True, timeout=timeout_seconds) as client:
         for app_row in app_rows:
-            obs = check_app(app_row, client)
+            try:
+                obs = check_app(app_row, client)
+            except Exception as e:
+                # check_app() already catches SourceUnavailable internally -
+                # this is the last line of defense against something totally
+                # unexpected (a malformed response causing a KeyError, etc.)
+                # in one app's adapter. Without this, one broken app takes
+                # down the whole "Check All Now" / per-row check request for
+                # every other app too - happened twice now (GitLab's Releases
+                # API 403, GitHub's rate-limit 403) from two different causes,
+                # so this is a general safety net, not a fix for either
+                # specific case.
+                obs = ReleaseObservation(check_run_id=0, app_id=app_row.id or 0)
+                obs.status = CheckStatus.error
+                obs.error = f"{type(e).__name__}: {e}"[:500]
+                app_row.last_error = obs.error
+                app_row.consecutive_failures += 1
+                app_row.last_checked_at = datetime.now(timezone.utc)
+
             obs.check_run_id = run.id
             obs.app_id = app_row.id
 

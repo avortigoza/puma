@@ -96,8 +96,16 @@ class SourceAdapter(ABC):
             r = self.client.get(url, headers=headers, timeout=20, **kw)
         except httpx.HTTPError as e:
             raise SourceUnavailable(str(e)) from e
-        if r.status_code >= 500 or r.status_code == 429:
-            raise SourceUnavailable(f"{r.status_code} from {url}")
+        # Any bad status (not just 5xx/429) becomes SourceUnavailable here -
+        # this is the single choke point nearly every adapter's fetch() goes
+        # through, so it's the right place to guarantee a raw httpx.HTTPStatusError
+        # (e.g. a plain 403 like GitHub's unauthenticated rate limit, or a 401,
+        # 404...) never escapes to crash the whole check request. Individual
+        # adapters' own raise_for_status()/status_code checks downstream become
+        # unreachable once this holds - harmless, left in place as documentation
+        # of what each adapter expects to succeed.
+        if r.status_code >= 400 and r.status_code != 304:
+            raise SourceUnavailable(f"{r.status_code} from {url}: {r.text[:200]}")
         return r
 
     @classmethod
