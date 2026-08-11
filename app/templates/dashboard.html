@@ -130,7 +130,7 @@ bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
           {% endif %}
         </td>
         <td class="px-5 py-3 {% if not app.latest_version %}text-gray-400{% elif not app.installed_version %}text-gray-500{% elif app.update_available %}text-puma-red font-medium{% else %}text-puma-green{% endif %}">
-          <div>{{ app.latest_version or "—" }}</div>
+          <div>{{ app.latest_version | padversion or "—" }}</div>
           {% set latest_date = app.latest_published_at or app.latest_seen_at or app.last_checked_at %}
           {% if app.latest_version and latest_date %}
           <div class="text-[11px] {% if app.update_available %}text-puma-red/70{% else %}text-gray-400{% endif %}">({{ latest_date | shortdate }})</div>

@@ -139,6 +139,23 @@ def short_date(value: Optional[datetime]) -> str:
 
 templates.env.filters["shortdate"] = short_date
 
+
+def pad_version(value: Optional[str], min_parts: int = 3) -> str:
+    """Display-only padding, e.g. '3.1' -> '3.1.0'. Purely cosmetic - some
+    upstream sources (like Telestream's Stanza page) only ever publish
+    two-component versions; this does not reveal or invent real precision
+    that doesn't exist, it just pads the display for visual alignment
+    against installed-version strings that do have more components."""
+    if not value:
+        return value
+    parts = value.split(".")
+    if len(parts) >= min_parts:
+        return value
+    return ".".join(parts + ["0"] * (min_parts - len(parts)))
+
+
+templates.env.filters["padversion"] = pad_version
+
 # Colored badge per app row, mirroring the mockup's per-app icon colors.
 # Known apps get a thoughtful, on-brand color; anything else gets a
 # stable color chosen from its slug so it's at least consistent run to run.
