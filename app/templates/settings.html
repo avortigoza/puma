@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Settings{% endblock %}
 {% block content %}
-{% from "base.html" import icon, toggle %}
+{% from "base.html" import icon, toggle, checkbox %}
 
 <div class="max-w-2xl mx-auto mb-6">
   <a href="/" class="text-sm text-gray-400 hover:text-puma-primary">&larr; Back to Dashboard</a>
@@ -75,12 +75,7 @@
       <p class="text-sm font-medium text-gray-600 mb-2">Which applications show in that table</p>
       <div class="space-y-1.5 max-h-48 overflow-y-auto">
         {% for a in all_apps %}
-        <label class="flex items-center gap-2 text-sm text-gray-600">
-          <input type="checkbox" name="dashboard_visible_app_ids" value="{{ a.id }}"
-                 {% if a.id in dashboard_visible_ids %}checked{% endif %}
-                 class="rounded border border-solid border-puma-primary accent-puma-primary focus:ring-puma-primary/30">
-          {{ a.name }}
-        </label>
+        {{ checkbox("dashboard_visible_app_ids", a.id, a.id in dashboard_visible_ids, a.name) }}
         {% endfor %}
       </div>
       <p class="text-xs text-gray-400 mt-2">
