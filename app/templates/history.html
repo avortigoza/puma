@@ -23,7 +23,7 @@
     <tbody>
       {% for run in runs %}
       <tr id="run-{{ run.id }}" class="border-b border-gray-100 cursor-pointer hover:bg-gray-50" onclick="toggleHistoryRow({{ run.id }})">
-        <td class="px-4 py-2.5 text-gray-600 whitespace-nowrap">{{ run.started_at.strftime("%b %d, %Y %I:%M %p") }}</td>
+        <td class="px-4 py-2.5 text-gray-600 whitespace-nowrap">{{ run.started_at | localdatetime }}</td>
         <td class="px-4 py-2.5 text-gray-400 whitespace-nowrap">{{ run.trigger.value | capitalize }} Check</td>
         <td class="px-4 py-2.5">
           <span class="inline-block bg-puma-primary-light text-puma-primary font-medium text-xs px-2.5 py-1 rounded-full whitespace-nowrap">{{ run.apps_checked }} checked</span>

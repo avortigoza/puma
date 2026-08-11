@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
+from zoneinfo import ZoneInfo
 
 # Make sibling modules (models, versioning, adapters) importable regardless
 # of the process's working directory.
@@ -51,6 +52,13 @@ if not SECRET_KEY:
         "PUMA_SECRET_KEY is not set. Add it to /etc/puma/puma.env "
         "(generate one with: python3 -c \"import secrets; print(secrets.token_hex(32))\")"
     )
+
+# Everything is stored/computed in UTC internally (datetime.now(timezone.utc)
+# throughout). This is only for *display* - converting absolute timestamps
+# to the team's actual timezone before formatting, so dates/times shown in
+# the UI match the wall clock instead of raw UTC. Configurable via env var
+# in case this ever needs to run for a team elsewhere.
+DISPLAY_TZ = ZoneInfo(os.environ.get("PUMA_DISPLAY_TZ", "Asia/Manila"))
 
 engine = create_engine(f"sqlite:///{DB_PATH}")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -162,10 +170,26 @@ def short_date(value: Optional[datetime]) -> str:
         return ""
     if value.tzinfo is None:
         value = value.replace(tzinfo=timezone.utc)
-    return value.strftime("%b %-d, %Y")
+    return value.astimezone(DISPLAY_TZ).strftime("%b %-d, %Y")
 
 
 templates.env.filters["shortdate"] = short_date
+
+
+def local_datetime(value: Optional[datetime]) -> str:
+    """Full date + time, converted from UTC (how everything is stored) to
+    the display timezone - without this, absolute timestamps render as
+    raw UTC labeled as if they were local time, off by a fixed offset
+    from what's actually on the wall clock (Manila is UTC+8, so this was
+    showing times 8 hours behind)."""
+    if not value:
+        return ""
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(DISPLAY_TZ).strftime("%b %d, %Y %I:%M %p")
+
+
+templates.env.filters["localdatetime"] = local_datetime
 
 # Colored badge per app row, mirroring the mockup's per-app icon colors.
 # Known apps get a thoughtful, on-brand color; anything else gets a

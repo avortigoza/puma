@@ -226,7 +226,7 @@ bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
       <tbody>
         {% for run in recent_runs %}
         <tr class="border-b border-gray-100 h-10 cursor-pointer hover:bg-gray-50" onclick="window.location.href='/history#run-{{ run.id }}'">
-          <td class="px-4 align-middle text-gray-600 whitespace-nowrap">{{ run.started_at.strftime("%b %d, %Y %I:%M %p") }}</td>
+          <td class="px-4 align-middle text-gray-600 whitespace-nowrap">{{ run.started_at | localdatetime }}</td>
           <td class="px-4 align-middle text-gray-400 whitespace-nowrap">{{ run.trigger.value | capitalize }} Check</td>
           <td class="px-4 align-middle">
             <span class="inline-block bg-puma-primary-light text-puma-primary font-medium text-xs px-2.5 py-1 rounded-full whitespace-nowrap">{{ run.apps_checked }} checked</span>
