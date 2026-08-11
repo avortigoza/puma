@@ -224,12 +224,12 @@ bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
       <tbody>
         {% for run in recent_runs %}
         <tr class="border-b border-gray-100">
-          <td class="px-4 py-1.5 text-gray-600 whitespace-nowrap">{{ run.started_at.strftime("%b %d, %Y %I:%M %p") }}</td>
-          <td class="px-4 py-1.5 text-gray-400 whitespace-nowrap">{{ run.trigger.value | capitalize }} Check</td>
-          <td class="px-4 py-1.5">
+          <td class="px-4 py-2 text-gray-600 whitespace-nowrap">{{ run.started_at.strftime("%b %d, %Y %I:%M %p") }}</td>
+          <td class="px-4 py-2 text-gray-400 whitespace-nowrap">{{ run.trigger.value | capitalize }} Check</td>
+          <td class="px-4 py-2">
             <span class="inline-block bg-puma-primary-light text-puma-primary font-medium text-xs px-2.5 py-1 rounded-full whitespace-nowrap">{{ run.apps_checked }} checked</span>
           </td>
-          <td class="px-4 py-1.5 text-gray-300 text-right">&rsaquo;</td>
+          <td class="px-4 py-2 text-gray-300 text-right">&rsaquo;</td>
         </tr>
         {% endfor %}
       </tbody>
