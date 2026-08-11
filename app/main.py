@@ -95,7 +95,7 @@ def extract_target_host(source_type: str, config: dict) -> Optional[str]:
     github_releases/github_tags are hardcoded to api.github.com, so they
     need no check. Anything that takes a user-supplied URL does."""
     url = None
-    if source_type in ("gitlab_releases", "glpi_rest_api"):
+    if source_type in ("gitlab_releases", "glpi_rest_api", "stanza_api"):
         url = config.get("base_url")
     elif source_type in ("atom_feed", "json_api", "html_regex", "http_header"):
         url = config.get("url")

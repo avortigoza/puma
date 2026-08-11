@@ -356,6 +356,54 @@ class HttpHeader(SourceAdapter):
 
 
 @register
+class StanzaApi(SourceAdapter):
+    r"""Stanza (Telestream)'s API needs a login step (POST username/password
+    to /api/users/jwt-login) before ANY other call works, same shape as
+    GLPI's initSession - a plain GET can't do this. Logs in, reads /version.
+    Note: Stanza's own /version reports an internal build number
+    (e.g. 3.0.3065+<git-hash>), not the marketing version (3.1) used on
+    the public downloads page - pair this with a version_pattern of
+    ^(\d+\.\d+) on the monitored app so both sides compare on the same
+    major.minor terms instead of the meaningless build number outranking
+    every real release."""
+
+    key = "stanza_api"
+    label = "Stanza (Telestream) API"
+    fields = [
+        Field_("base_url", "Stanza base URL", type="url",
+               placeholder="http://10.0.1.214:7000"),
+        Field_("username", "Username"),
+        Field_("password", "Password", type="password"),
+    ]
+
+    def fetch(self, etag=None, last_modified=None) -> FetchResult:
+        base = self.config["base_url"].rstrip("/")
+        try:
+            login = self.client.post(
+                f"{base}/api/users/jwt-login",
+                json={"userName": self.config["username"],
+                      "password": self.config["password"]},
+                timeout=20,
+            )
+        except httpx.HTTPError as e:
+            raise SourceUnavailable(str(e)) from e
+        if login.status_code >= 400:
+            raise SourceUnavailable(f"Stanza login failed: {login.text[:200]}")
+        token = login.json().get("token")
+        if not token:
+            raise SourceUnavailable("Stanza login did not return a token")
+
+        r = self._get(f"{base}/version",
+                       headers={"Authorization": f"Bearer {token}"})
+        if r.status_code >= 400:
+            raise SourceUnavailable(f"Stanza /version failed: {r.text[:200]}")
+        version = r.json().get("version")
+        if not version:
+            return FetchResult([])
+        return FetchResult([Release(raw_tag=version)])
+
+
+@register
 class JsonApi(SourceAdapter):
     """Escape hatch #1: any endpoint returning JSON, plus a dotted path.
     Path supports list indexing: 'releases.0.version' or 'versions[]' ."""
