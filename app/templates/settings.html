@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Settings{% endblock %}
 {% block content %}
-{% from "base.html" import icon %}
+{% from "base.html" import icon, toggle %}
 
 <div class="max-w-2xl mx-auto mb-6">
   <a href="/" class="text-sm text-gray-400 hover:text-puma-primary">&larr; Back to Dashboard</a>
@@ -23,15 +23,7 @@
       {{ icon("clock", "w-4 h-4 text-puma-primary") }}
       Auto Check
     </div>
-    <label class="flex items-center gap-3 text-sm text-gray-600 cursor-pointer w-fit">
-      <span class="relative inline-flex items-center shrink-0">
-        <input type="checkbox" name="auto_check_enabled"
-               {% if current.auto_check_enabled == "true" %}checked{% endif %} class="sr-only peer">
-        <span class="w-10 h-5 bg-gray-200 rounded-full peer-checked:bg-puma-primary transition-colors"></span>
-        <span class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform peer-checked:translate-x-5"></span>
-      </span>
-      Automatically check all applications on a schedule
-    </label>
+    {{ toggle("auto_check_enabled", current.auto_check_enabled == "true", "Automatically check all applications on a schedule") }}
     <div>
       <label class="block text-sm font-medium text-gray-600 mb-1">Check Interval</label>
       <select name="auto_check_interval_minutes"
@@ -63,15 +55,7 @@
       {{ icon("bell", "w-4 h-4 text-puma-primary") }}
       Notifications
     </div>
-    <label class="flex items-center gap-3 text-sm text-gray-600 cursor-pointer w-fit">
-      <span class="relative inline-flex items-center shrink-0">
-        <input type="checkbox" name="notifications_enabled"
-               {% if current.notifications_enabled == "true" %}checked{% endif %} class="sr-only peer">
-        <span class="w-10 h-5 bg-gray-200 rounded-full peer-checked:bg-puma-primary transition-colors"></span>
-        <span class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform peer-checked:translate-x-5"></span>
-      </span>
-      Queue a notification when a genuinely newer version is found
-    </label>
+    {{ toggle("notifications_enabled", current.notifications_enabled == "true", "Queue a notification when a genuinely newer version is found") }}
     <p class="text-xs text-gray-400">
       This controls whether notifications are queued internally. Delivery (email, Slack, etc.) isn't wired up yet - queued notifications are visible in-app but nothing external is sent.
     </p>
@@ -82,15 +66,7 @@
       {{ icon("grid", "w-4 h-4 text-puma-primary") }}
       Dashboard Layout
     </div>
-    <label class="flex items-center gap-3 text-sm text-gray-600 cursor-pointer w-fit">
-      <span class="relative inline-flex items-center shrink-0">
-        <input type="checkbox" name="dashboard_show_applications_table"
-               {% if current.dashboard_show_applications_table == "true" %}checked{% endif %} class="sr-only peer">
-        <span class="w-10 h-5 bg-gray-200 rounded-full peer-checked:bg-puma-primary transition-colors"></span>
-        <span class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform peer-checked:translate-x-5"></span>
-      </span>
-      Show the full Applications table on the Dashboard
-    </label>
+    {{ toggle("dashboard_show_applications_table", current.dashboard_show_applications_table == "true", "Show the full Applications table on the Dashboard") }}
     <p class="text-xs text-gray-400">
       The Applications table is always available on its own page via the sidebar. Turn this off to keep the Dashboard to just the summary cards and recent activity.
     </p>
@@ -102,7 +78,7 @@
         <label class="flex items-center gap-2 text-sm text-gray-600">
           <input type="checkbox" name="dashboard_visible_app_ids" value="{{ a.id }}"
                  {% if a.id in dashboard_visible_ids %}checked{% endif %}
-                 class="rounded border-puma-primary accent-puma-primary focus:ring-puma-primary/30">
+                 class="rounded border border-solid border-puma-primary accent-puma-primary focus:ring-puma-primary/30">
           {{ a.name }}
         </label>
         {% endfor %}
