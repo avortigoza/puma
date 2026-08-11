@@ -75,6 +75,24 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="stat
 # Small helpers
 # --------------------------------------------------------------------------
 
+def render(request: Request, template_name: str, context: dict) -> HTMLResponse:
+    """Wraps templates.TemplateResponse and injects context every page
+    needs regardless of which route renders it - right now just
+    unread_notifications for the topbar bell badge, which was previously
+    only computed inside the Dashboard route and silently missing
+    everywhere else. Routing every render through here means adding a
+    future "every page needs this" value can't be forgotten route by
+    route the way this one was."""
+    with Session(engine) as session:
+        unread = session.exec(
+            select(func.count()).select_from(Notification).where(
+                Notification.read == False  # noqa: E712
+            )
+        ).one()
+    merged = {**context, "unread_notifications": unread}
+    return templates.TemplateResponse(request, template_name, merged)
+
+
 def hash_password(raw: str) -> str:
     return pwd_context.hash(raw)
 
@@ -271,7 +289,7 @@ def on_startup() -> None:
 def login_form(request: Request):
     if request.session.get("user_id"):
         return RedirectResponse("/", status_code=303)
-    return templates.TemplateResponse(
+    return render(
         request, "login.html", {"error": None}
     )
 
@@ -285,7 +303,7 @@ def login_submit(
     with Session(engine) as session:
         user = session.exec(select(User).where(User.username == username)).first()
         if not user or not verify_password(password, user.password_hash):
-            return templates.TemplateResponse(
+            return render(
                 request,
                 "login.html",
                 {"error": "Invalid username or password."},
@@ -415,7 +433,7 @@ def app_to_form_dict(app_row: MonitoredApp) -> dict:
 
 @app.get("/applications/new", response_class=HTMLResponse)
 def new_application_form(request: Request, user: User = Depends(require_login)):
-    return templates.TemplateResponse(
+    return render(
         request,
         "add_application.html",
         {
@@ -539,7 +557,7 @@ async def create_application(request: Request, user: User = Depends(require_logi
         validate_trusted_hosts(session, fields, errors)
 
         if errors:
-            return templates.TemplateResponse(
+            return render(
                 request,
                 "add_application.html",
                 {
@@ -573,7 +591,7 @@ def edit_application_form(app_id: int, request: Request, user: User = Depends(re
             return RedirectResponse("/", status_code=303)
         form_dict = app_to_form_dict(app_row)
 
-    return templates.TemplateResponse(
+    return render(
         request,
         "add_application.html",
         {
@@ -608,7 +626,7 @@ async def update_application(app_id: int, request: Request, user: User = Depends
         validate_trusted_hosts(session, fields, errors)
 
         if errors:
-            return templates.TemplateResponse(
+            return render(
                 request,
                 "add_application.html",
                 {
@@ -700,12 +718,6 @@ def dashboard(request: Request, user: User = Depends(require_login)):
         ).first()
         last_checked = last_full_run.started_at if last_full_run else None
 
-        unread_notifications = session.exec(
-            select(func.count()).select_from(Notification).where(
-                Notification.read == False  # noqa: E712
-            )
-        ).one()
-
         recent_runs = session.exec(
             select(CheckRun).order_by(CheckRun.started_at.desc()).limit(3)
         ).all()
@@ -734,7 +746,7 @@ def dashboard(request: Request, user: User = Depends(require_login)):
         hidden_ids = get_dashboard_hidden_app_ids(session)
         dashboard_table_apps = [a for a in apps if a.id not in hidden_ids]
 
-    return templates.TemplateResponse(
+    return render(
         request,
         "dashboard.html",
         {
@@ -744,7 +756,6 @@ def dashboard(request: Request, user: User = Depends(require_login)):
             "updates_available": updates_available,
             "up_to_date": up_to_date,
             "last_checked": last_checked,
-            "unread_notifications": unread_notifications,
             "recent_runs": recent_runs,
             "settings_overview": settings_overview,
             "show_apps_table": show_apps_table,
@@ -756,7 +767,7 @@ def dashboard(request: Request, user: User = Depends(require_login)):
 def applications_page(request: Request, user: User = Depends(require_login)):
     with Session(engine) as session:
         apps = session.exec(select(MonitoredApp).order_by(MonitoredApp.name)).all()
-    return templates.TemplateResponse(
+    return render(
         request,
         "applications.html",
         {"user": user, "apps": apps},
@@ -796,7 +807,7 @@ def history(request: Request, page: int = 1, user: User = Depends(require_login)
         for obs in observations:
             obs_by_run.setdefault(obs.check_run_id, []).append(obs)
 
-    return templates.TemplateResponse(
+    return render(
         request,
         "history.html",
         {
@@ -832,7 +843,7 @@ def settings_page(request: Request, saved: int = 0, user: User = Depends(require
         }
         all_apps = session.exec(select(MonitoredApp).order_by(MonitoredApp.name)).all()
         hidden_ids = get_dashboard_hidden_app_ids(session)
-    return templates.TemplateResponse(
+    return render(
         request,
         "settings.html",
         {
@@ -947,7 +958,7 @@ def notifications_page(request: Request, page: int = 1, user: User = Depends(req
             else {}
         )
 
-    return templates.TemplateResponse(
+    return render(
         request,
         "notifications.html",
         {
