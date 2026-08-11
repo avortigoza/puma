@@ -72,7 +72,7 @@ bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
     <div>
       <div class="text-xs text-gray-400">Last Check</div>
       <div id="last-check-text" class="text-2xl font-bold"
-           data-last-checked="{{ last_checked.isoformat() if last_checked else '' }}">{{ last_checked | timeago }}</div>
+           data-seconds-ago="{{ last_checked | secondsago }}">{{ last_checked | timeago }}</div>
     </div>
   </div>
 </div>
@@ -162,7 +162,7 @@ bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
           {% else %}—{% endif %}
         </td>
         <td class="px-5 py-3 text-xs text-gray-400 last-checked-cell"
-            data-last-checked="{{ app.last_checked_at.isoformat() if app.last_checked_at else '' }}">{{ app.last_checked_at | timeago }}</td>
+            data-seconds-ago="{{ app.last_checked_at | secondsago }}">{{ app.last_checked_at | timeago }}</td>
         <td class="px-5 py-3">
           <div class="flex items-center gap-1.5">
             <form method="post" action="/applications/{{ app.id }}/check">
@@ -306,11 +306,14 @@ bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
 
   // Keep every relative "X ago" timestamp ticking live in the browser -
   // the "Last Check" KPI card and each app row's "Last Checked" column -
-  // without needing a full page reload. Mirrors the same wording buckets
-  // as the server-side timeago filter in main.py.
-  function formatTimeAgo(isoString) {
-    var then = new Date(isoString);
-    var seconds = Math.floor((Date.now() - then.getTime()) / 1000);
+  // without needing a full page reload. Deliberately does NOT parse or
+  // compare Date objects: the server sends a plain integer ("this many
+  // seconds old as of render time"), and every tick just adds 30 to it.
+  // Pure arithmetic, so there's no dependency on the browser's clock
+  // agreeing with the server's, no ISO-string parsing edge cases - the
+  // class of bug that a Date-comparison approach is exposed to simply
+  // can't happen here.
+  function formatFromSeconds(seconds) {
     if (seconds < 60) return "just now";
     var minutes = Math.floor(seconds / 60);
     if (minutes < 60) return minutes + " minute" + (minutes !== 1 ? "s" : "") + " ago";
@@ -321,18 +324,24 @@ bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
   }
 
   (function () {
+    var TICK_MS = 30000;
+
+    function bump(el) {
+      var base = parseInt(el.getAttribute('data-seconds-ago'), 10);
+      if (isNaN(base)) return;
+      var elapsed = parseInt(el.getAttribute('data-elapsed-ticks') || '0', 10);
+      elapsed += TICK_MS / 1000;
+      el.setAttribute('data-elapsed-ticks', String(elapsed));
+      el.textContent = formatFromSeconds(base + elapsed);
+    }
+
     function tickAll() {
       var kpiEl = document.getElementById('last-check-text');
-      if (kpiEl) {
-        var kpiIso = kpiEl.getAttribute('data-last-checked');
-        if (kpiIso) kpiEl.textContent = formatTimeAgo(kpiIso);
-      }
-      document.querySelectorAll('.last-checked-cell').forEach(function (cell) {
-        var iso = cell.getAttribute('data-last-checked');
-        if (iso) cell.textContent = formatTimeAgo(iso);
-      });
+      if (kpiEl) bump(kpiEl);
+      document.querySelectorAll('.last-checked-cell').forEach(bump);
     }
-    setInterval(tickAll, 30000);
+
+    setInterval(tickAll, TICK_MS);
   })();
 </script>
 {% endblock %}

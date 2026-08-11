@@ -139,6 +139,24 @@ def time_ago(value: Optional[datetime]) -> str:
 templates.env.filters["timeago"] = time_ago
 
 
+def seconds_ago(value: Optional[datetime]) -> str:
+    """Plain integer seconds elapsed - used to drive the client-side live
+    ticker via pure arithmetic (base + elapsed_ticks) instead of comparing
+    a server date string against the browser's own clock on every tick.
+    Comparing clocks client-side is exactly the kind of thing that can go
+    wrong in hard-to-diagnose ways; this sidesteps that class of bug
+    entirely by never parsing or comparing a Date in JS at all."""
+    if not value:
+        return ""
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    delta = datetime.now(timezone.utc) - value
+    return str(max(0, int(delta.total_seconds())))
+
+
+templates.env.filters["secondsago"] = seconds_ago
+
+
 def short_date(value: Optional[datetime]) -> str:
     if not value:
         return ""
