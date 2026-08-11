@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}About{% endblock %}
+{% block content %}
+
+<div class="max-w-xl mx-auto">
+  <a href="/" class="text-sm text-gray-400 hover:text-puma-primary">&larr; Back to Dashboard</a>
+
+  <div class="bg-white rounded-xl border border-gray-100 p-8 mt-4 text-center">
+    <img src="/static/img/logo-login.png" alt="PUMA" class="h-20 w-auto mx-auto mb-4">
+    <h1 class="text-2xl font-bold text-puma-primary">PUMA</h1>
+    <p class="text-sm text-gray-400 mt-1">Program Update Monitoring Assistant</p>
+    <p class="text-xs text-gray-300 mt-1">{{ puma_version }}</p>
+    <p class="text-sm text-gray-600 mt-4 italic">Stay current. Stay secure.</p>
+
+    <div class="text-left mt-6 pt-6 border-t border-gray-100 text-sm text-gray-600 space-y-3">
+      <p>
+        PUMA checks the applications your team runs against their public release sources, and compares that against what's actually installed, so it's clear at a glance what's current and what's overdue for an upgrade.
+      </p>
+      <p>
+        It supports pulling release information from GitHub (releases or tags), GitLab, Atom/RSS feeds, plain HTML pages, JSON and REST APIs, HTTP response headers, and local files or Git checkouts on the server it runs on - whatever shape a given application's update source actually takes.
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}

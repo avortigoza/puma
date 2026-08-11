@@ -11,13 +11,25 @@
       <div class="relative">
         {{ icon("search", "w-3.5 h-3.5 text-gray-300 absolute left-3 top-1/2 -translate-y-1/2") }}
         <input type="text" placeholder="Search application..."
-               class="pl-8 pr-3 py-1 text-sm rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-puma-primary/20">
+               oninput="pumaFilterApps(this)"
+               class="pl-8 pr-3 py-1 text-sm rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-puma-primary/20 puma-app-search">
       </div>
-      <button type="button" class="flex items-center gap-1.5 px-3 py-1 text-sm text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50">
-        {{ icon("filter", "w-4 h-4") }}
-        Filter
-        {{ icon("chevron-down", "w-3.5 h-3.5 text-gray-400") }}
-      </button>
+      <div class="relative">
+        <button type="button"
+                onclick="togglePumaMenu(event, 'puma-filter-menu')"
+                class="flex items-center gap-1.5 px-3 py-1 text-sm text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50">
+          {{ icon("filter", "w-4 h-4") }}
+          <span class="puma-filter-label">Filter</span>
+          {{ icon("chevron-down", "w-3.5 h-3.5 text-gray-400") }}
+        </button>
+        <div id="puma-filter-menu" class="puma-app-menu hidden absolute right-0 mt-1 w-44 bg-white rounded-lg border border-gray-100 shadow-lg z-10 py-1 text-left">
+          <button type="button" onclick="pumaSetStatusFilter(this, '')" class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">All statuses</button>
+          <button type="button" onclick="pumaSetStatusFilter(this, 'update_available')" class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">Update Available</button>
+          <button type="button" onclick="pumaSetStatusFilter(this, 'up_to_date')" class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">Up to Date</button>
+          <button type="button" onclick="pumaSetStatusFilter(this, 'not_checked')" class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">Not Checked</button>
+          <button type="button" onclick="pumaSetStatusFilter(this, 'unknown')" class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">Unknown</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -35,7 +47,16 @@
     </thead>
     <tbody>
       {% for app in apps %}
-      <tr class="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
+      {% if not app.latest_version %}
+      {% set row_status = "not_checked" %}
+      {% elif not app.installed_version %}
+      {% set row_status = "unknown" %}
+      {% elif app.update_available %}
+      {% set row_status = "update_available" %}
+      {% else %}
+      {% set row_status = "up_to_date" %}
+      {% endif %}
+      <tr class="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 puma-app-row" data-status="{{ row_status }}">
         <td class="px-5 py-3">
           <div class="flex items-center gap-3">
             <div class="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold text-white shrink-0 {{ app.slug | app_badge_color }}">
@@ -122,10 +143,13 @@
         </td>
       </tr>
       {% endfor %}
+      <tr id="puma-no-results-row" class="hidden">
+        <td colspan="7" class="px-5 py-10 text-center text-gray-400 text-sm">No applications match your search or filter.</td>
+      </tr>
     </tbody>
   </table>
   {% if apps %}
-  <div class="px-5 py-3 text-xs text-gray-400 border-t border-gray-100">
+  <div class="px-5 py-3 text-xs text-gray-400 border-t border-gray-100" id="puma-apps-count">
     Showing 1 to {{ apps|length }} of {{ apps|length }} applications
   </div>
   {% endif %}

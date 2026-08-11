@@ -8,7 +8,9 @@ Run (from inside app/, after activating the venv):
 from __future__ import annotations
 
 import os
+import platform
 import re
+import socket
 import sys
 import zlib
 from datetime import datetime, timezone
@@ -59,6 +61,11 @@ if not SECRET_KEY:
 # the UI match the wall clock instead of raw UTC. Configurable via env var
 # in case this ever needs to run for a team elsewhere.
 DISPLAY_TZ = ZoneInfo(os.environ.get("PUMA_DISPLAY_TZ", "Asia/Manila"))
+
+# When this worker process actually started - used for the "uptime" figure
+# on System Info. Module-level so it's set once at import time, before any
+# request handling begins.
+APP_STARTED_AT = datetime.now(timezone.utc)
 
 engine = create_engine(f"sqlite:///{DB_PATH}")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -1007,3 +1014,72 @@ def mark_all_notifications_read(
         next if next and next.startswith("/notifications") else "/notifications",
         status_code=303,
     )
+
+
+def _format_duration(delta_seconds: float) -> str:
+    seconds = int(delta_seconds)
+    days, seconds = divmod(seconds, 86400)
+    hours, seconds = divmod(seconds, 3600)
+    minutes, _ = divmod(seconds, 60)
+    parts = []
+    if days:
+        parts.append(f"{days} day{'s' if days != 1 else ''}")
+    if hours:
+        parts.append(f"{hours} hour{'s' if hours != 1 else ''}")
+    if minutes or not parts:
+        parts.append(f"{minutes} minute{'s' if minutes != 1 else ''}")
+    return " ".join(parts[:2])
+
+
+def _format_bytes(num_bytes: int) -> str:
+    size = float(num_bytes)
+    for unit in ("B", "KB", "MB", "GB"):
+        if size < 1024:
+            return f"{size:.1f} {unit}" if unit != "B" else f"{int(size)} {unit}"
+        size /= 1024
+    return f"{size:.1f} TB"
+
+
+@app.get("/system-info", response_class=HTMLResponse)
+def system_info_page(request: Request, user: User = Depends(require_login)):
+    with Session(engine) as session:
+        total_apps = session.exec(select(func.count()).select_from(MonitoredApp)).one()
+        enabled_apps = session.exec(
+            select(func.count()).select_from(MonitoredApp).where(
+                MonitoredApp.enabled == True  # noqa: E712
+            )
+        ).one()
+        total_runs = session.exec(select(func.count()).select_from(CheckRun)).one()
+        total_notifications = session.exec(
+            select(func.count()).select_from(Notification)
+        ).one()
+
+    try:
+        db_size = _format_bytes(os.path.getsize(DB_PATH))
+    except OSError:
+        db_size = "unavailable"
+
+    now_utc = datetime.now(timezone.utc)
+    info = {
+        "puma_version": "v1.0.0",
+        "hostname": socket.gethostname(),
+        "os": f"{platform.system()} {platform.release()}",
+        "python_version": platform.python_version(),
+        "db_path": DB_PATH,
+        "db_size": db_size,
+        "display_timezone": str(DISPLAY_TZ),
+        "server_time_utc": now_utc.strftime("%b %d, %Y %H:%M:%S UTC"),
+        "server_time_local": now_utc.astimezone(DISPLAY_TZ).strftime("%b %d, %Y %I:%M:%S %p"),
+        "uptime": _format_duration((now_utc - APP_STARTED_AT).total_seconds()),
+        "total_apps": total_apps,
+        "enabled_apps": enabled_apps,
+        "total_runs": total_runs,
+        "total_notifications": total_notifications,
+    }
+
+    return render(request, "system_info.html", {"user": user, "info": info})
+
+
+@app.get("/about", response_class=HTMLResponse)
+def about_page(request: Request, user: User = Depends(require_login)):
+    return render(request, "about.html", {"user": user, "puma_version": "v1.0.0"})

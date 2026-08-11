@@ -66,8 +66,8 @@
         ("clock", "History", "/history"),
         ("bell", "Notifications", "/notifications"),
         ("settings", "Settings", "/settings"),
-        ("monitor", "System Info", "#"),
-        ("info", "About", "#"),
+        ("monitor", "System Info", "/system-info"),
+        ("info", "About", "/about"),
       ] %}
       {% for icon_name, label, href in nav_items %}
       {% set active = href != "#" and request is defined and request.url.path == href %}
@@ -132,6 +132,59 @@
       m.classList.add('hidden');
     });
   });
+
+  // Search + status filter for the Applications table (shared partial,
+  // appears on both Dashboard and the standalone Applications page).
+  // Client-side only - no reload, since the whole point is fast, instant
+  // filtering of a list that's already fully loaded in the page.
+  function pumaFilterApps(searchInput) {
+    var query = (searchInput.value || '').trim().toLowerCase();
+    var statusFilter = searchInput.getAttribute('data-status-filter') || '';
+    var rows = document.querySelectorAll('.puma-app-row');
+    var visibleCount = 0;
+
+    rows.forEach(function (row) {
+      var matchesText = !query || row.textContent.toLowerCase().indexOf(query) !== -1;
+      var matchesStatus = !statusFilter || row.getAttribute('data-status') === statusFilter;
+      var show = matchesText && matchesStatus;
+      row.classList.toggle('hidden', !show);
+      if (show) visibleCount++;
+    });
+
+    var noResultsRow = document.getElementById('puma-no-results-row');
+    if (noResultsRow) {
+      noResultsRow.classList.toggle('hidden', rows.length === 0 || visibleCount > 0);
+    }
+
+    var countEl = document.getElementById('puma-apps-count');
+    if (countEl && rows.length > 0) {
+      countEl.textContent = (query || statusFilter)
+        ? 'Showing ' + visibleCount + ' of ' + rows.length + ' applications'
+        : 'Showing 1 to ' + rows.length + ' of ' + rows.length + ' applications';
+    }
+  }
+
+  function pumaSetStatusFilter(button, status) {
+    var searchInput = document.querySelector('.puma-app-search');
+    if (!searchInput) return;
+    searchInput.setAttribute('data-status-filter', status);
+
+    var label = document.querySelector('.puma-filter-label');
+    if (label) {
+      var labels = {
+        '': 'Filter',
+        'update_available': 'Update Available',
+        'up_to_date': 'Up to Date',
+        'not_checked': 'Not Checked',
+        'unknown': 'Unknown',
+      };
+      label.textContent = labels[status] || 'Filter';
+    }
+
+    pumaFilterApps(searchInput);
+    var menu = document.getElementById('puma-filter-menu');
+    if (menu) menu.classList.add('hidden');
+  }
 
   // Keep every relative "X ago" timestamp ticking live in the browser -
   // the Dashboard's "Last Check" KPI card and each app row's "Last

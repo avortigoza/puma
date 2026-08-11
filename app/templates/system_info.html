@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}System Info{% endblock %}
+{% block content %}
+{% from "base.html" import icon %}
+
+<div class="mb-6">
+  <a href="/" class="text-sm text-gray-400 hover:text-puma-primary">&larr; Back to Dashboard</a>
+  <h1 class="text-2xl font-bold text-gray-800 mt-2">System Info</h1>
+  <p class="text-gray-400 text-sm mt-1">What's actually running, right now.</p>
+</div>
+
+<div class="grid grid-cols-2 gap-4">
+
+  <div class="bg-white rounded-xl border border-gray-100 p-5 space-y-3">
+    <div class="flex items-center gap-2 font-semibold text-gray-700">
+      {{ icon("monitor", "w-4 h-4 text-puma-primary") }}
+      Server
+    </div>
+    <dl class="text-sm space-y-2">
+      <div class="flex justify-between"><dt class="text-gray-500">Hostname</dt><dd class="text-gray-800 font-mono text-xs">{{ info.hostname }}</dd></div>
+      <div class="flex justify-between"><dt class="text-gray-500">OS</dt><dd class="text-gray-800">{{ info.os }}</dd></div>
+      <div class="flex justify-between"><dt class="text-gray-500">Python</dt><dd class="text-gray-800">{{ info.python_version }}</dd></div>
+      <div class="flex justify-between"><dt class="text-gray-500">PUMA version</dt><dd class="text-gray-800">{{ info.puma_version }}</dd></div>
+      <div class="flex justify-between"><dt class="text-gray-500">Uptime</dt><dd class="text-gray-800">{{ info.uptime }}</dd></div>
+    </dl>
+  </div>
+
+  <div class="bg-white rounded-xl border border-gray-100 p-5 space-y-3">
+    <div class="flex items-center gap-2 font-semibold text-gray-700">
+      {{ icon("clock", "w-4 h-4 text-puma-primary") }}
+      Time
+    </div>
+    <dl class="text-sm space-y-2">
+      <div class="flex justify-between"><dt class="text-gray-500">Server time (UTC)</dt><dd class="text-gray-800 font-mono text-xs">{{ info.server_time_utc }}</dd></div>
+      <div class="flex justify-between"><dt class="text-gray-500">Display timezone</dt><dd class="text-gray-800">{{ info.display_timezone }}</dd></div>
+      <div class="flex justify-between"><dt class="text-gray-500">Local time</dt><dd class="text-gray-800 font-mono text-xs">{{ info.server_time_local }}</dd></div>
+    </dl>
+    <p class="text-xs text-gray-400 pt-1">
+      Everything is stored internally as UTC; this is just for display, converted to the timezone above.
+    </p>
+  </div>
+
+  <div class="bg-white rounded-xl border border-gray-100 p-5 space-y-3">
+    <div class="flex items-center gap-2 font-semibold text-gray-700">
+      {{ icon("check-circle", "w-4 h-4 text-puma-primary") }}
+      Database
+    </div>
+    <dl class="text-sm space-y-2">
+      <div class="flex justify-between"><dt class="text-gray-500">Path</dt><dd class="text-gray-800 font-mono text-xs break-all text-right">{{ info.db_path }}</dd></div>
+      <div class="flex justify-between"><dt class="text-gray-500">Size</dt><dd class="text-gray-800">{{ info.db_size }}</dd></div>
+    </dl>
+  </div>
+
+  <div class="bg-white rounded-xl border border-gray-100 p-5 space-y-3">
+    <div class="flex items-center gap-2 font-semibold text-gray-700">
+      {{ icon("grid", "w-4 h-4 text-puma-primary") }}
+      Data
+    </div>
+    <dl class="text-sm space-y-2">
+      <div class="flex justify-between"><dt class="text-gray-500">Monitored applications</dt><dd class="text-gray-800">{{ info.total_apps }} ({{ info.enabled_apps }} enabled)</dd></div>
+      <div class="flex justify-between"><dt class="text-gray-500">Check runs, all-time</dt><dd class="text-gray-800">{{ info.total_runs }}</dd></div>
+      <div class="flex justify-between"><dt class="text-gray-500">Notifications, all-time</dt><dd class="text-gray-800">{{ info.total_notifications }}</dd></div>
+    </dl>
+  </div>
+
+</div>
+{% endblock %}
