@@ -74,6 +74,7 @@ class MonitoredApp(SQLModel, table=True):
     # --- the running instance (server apps only) -------------------------
     instance_url: Optional[str] = None                   # https://vle.pstprd.one
     installed_version: Optional[str] = None              # manual, or probed
+    installed_version_raw: Optional[str] = None           # original probe value, before regex extraction
     installed_probe: Optional[str] = None                # adapters key, optional
     installed_probe_config: dict[str, Any] = Field(
         default_factory=dict, sa_column=Column(JSON)

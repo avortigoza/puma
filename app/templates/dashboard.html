@@ -125,6 +125,9 @@ bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
         </td>
         <td class="px-5 py-3">
           <div>{{ app.installed_version or "—" }}</div>
+          {% if app.installed_version_raw and app.installed_version_raw != app.installed_version %}
+          <div class="text-[11px] text-gray-400" title="Full value reported by the probe">{{ app.installed_version_raw }}</div>
+          {% endif %}
           {% if app.installed_version and app.last_checked_at %}
           <div class="text-[11px] text-gray-400">({{ app.last_checked_at | shortdate }})</div>
           {% endif %}

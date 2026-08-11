@@ -77,11 +77,11 @@ def check_app(app_row: MonitoredApp, client: httpx.Client) -> ReleaseObservation
                 )
                 presult = probe.fetch()
                 if presult.releases:
-                    installed = versioning.extract(
-                        presult.releases[0].raw_tag, app_row.version_pattern
-                    )
+                    raw = presult.releases[0].raw_tag
+                    installed = versioning.extract(raw, app_row.version_pattern)
                     if installed:
                         app_row.installed_version = installed
+                        app_row.installed_version_raw = raw
             except adapters.SourceUnavailable:
                 pass
 
