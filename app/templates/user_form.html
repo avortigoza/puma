@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit User" if editing_user else "Add User" }}{% endblock %}
+{% block content %}
+{% from "base.html" import icon, toggle %}
+
+<div class="max-w-xl mx-auto">
+  <a href="/users" class="text-sm text-gray-400 hover:text-puma-primary">&larr; Back to Users</a>
+  <h1 class="text-2xl font-bold text-gray-800 mt-2">{{ "Edit User" if editing_user else "Add User" }}</h1>
+  <p class="text-gray-400 text-sm mt-1">
+    {% if editing_user %}Update {{ editing_user.username }}'s account.{% else %}Create a new account for someone on your team.{% endif %}
+  </p>
+</div>
+
+{% if error %}
+<div class="max-w-xl mx-auto bg-red-50 text-puma-red text-sm rounded-lg px-4 py-3 mt-4 flex items-start gap-2">
+  {{ icon("alert", "w-4 h-4 mt-0.5 shrink-0") }}
+  <span>{{ error }}</span>
+</div>
+{% endif %}
+
+<form method="post" action="{{ '/users/' + editing_user.id|string + '/edit' if editing_user else '/users' }}" class="max-w-xl mx-auto mt-4 space-y-6">
+
+  <div class="bg-white rounded-xl border border-gray-100 p-5 space-y-4">
+    <div class="flex items-center gap-2 font-semibold text-gray-700">
+      {{ icon("user", "w-4 h-4 text-puma-primary") }}
+      Account
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-gray-600 mb-1">Username</label>
+      <input type="text" name="username" required
+             value="{{ form.get('username', editing_user.username if editing_user else '') }}"
+             class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-gray-600 mb-1">{{ "New Password" if editing_user else "Password" }}</label>
+      <input type="password" name="password" {% if not editing_user %}required{% endif %}
+             placeholder="{% if editing_user %}Leave blank to keep the current password{% endif %}"
+             class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+      <p class="text-xs text-gray-400 mt-1">At least 8 characters.</p>
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-gray-600 mb-1">Confirm {{ "New " if editing_user else "" }}Password</label>
+      <input type="password" name="confirm_password" {% if not editing_user %}required{% endif %}
+             class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+    </div>
+    {{ toggle("is_admin", form.get('is_admin', editing_user.is_admin if editing_user else True), "Admin - can manage applications, settings, and other users") }}
+  </div>
+
+  <div class="flex items-center gap-3">
+    <button type="submit"
+            class="bg-puma-primary hover:bg-puma-primary-dark text-white font-medium rounded-lg px-5 py-2 text-sm transition">
+      {{ "Save Changes" if editing_user else "Create User" }}
+    </button>
+    <a href="/users" class="text-sm text-gray-500 hover:text-puma-primary">Cancel</a>
+  </div>
+
+</form>
+{% endblock %}

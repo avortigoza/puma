@@ -279,6 +279,12 @@ def require_login(request: Request) -> User:
     return user
 
 
+def require_admin(user: User = Depends(require_login)) -> User:
+    if not user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user
+
+
 # --------------------------------------------------------------------------
 # Startup
 # --------------------------------------------------------------------------
@@ -1083,3 +1089,174 @@ def system_info_page(request: Request, user: User = Depends(require_login)):
 @app.get("/about", response_class=HTMLResponse)
 def about_page(request: Request, user: User = Depends(require_login)):
     return render(request, "about.html", {"user": user, "puma_version": "v1.0.0"})
+
+
+@app.get("/users", response_class=HTMLResponse)
+def users_page(request: Request, user: User = Depends(require_admin)):
+    with Session(engine) as session:
+        users = session.exec(select(User).order_by(User.username)).all()
+    return render(request, "users.html", {"user": user, "users": users})
+
+
+@app.get("/users/new", response_class=HTMLResponse)
+def new_user_form(request: Request, user: User = Depends(require_admin)):
+    return render(
+        request,
+        "user_form.html",
+        {"user": user, "editing_user": None, "error": None, "form": {}},
+    )
+
+
+@app.post("/users")
+async def create_user(request: Request, user: User = Depends(require_admin)):
+    form = await request.form()
+    username = str(form.get("username", "")).strip()
+    password = str(form.get("password", ""))
+    confirm_password = str(form.get("confirm_password", ""))
+    is_admin = form.get("is_admin") == "on"
+
+    errors = []
+    if not username:
+        errors.append("Username is required.")
+    if len(password) < 8:
+        errors.append("Password must be at least 8 characters.")
+    if password != confirm_password:
+        errors.append("Passwords don't match.")
+
+    with Session(engine) as session:
+        if username and session.exec(
+            select(User).where(User.username == username)
+        ).first():
+            errors.append(f"Username '{username}' is already taken.")
+
+        if errors:
+            return render(
+                request,
+                "user_form.html",
+                {
+                    "user": user,
+                    "editing_user": None,
+                    "error": " ".join(errors),
+                    "form": {"username": username, "is_admin": is_admin},
+                },
+            )
+
+        new_row = User(
+            username=username,
+            password_hash=hash_password(password),
+            is_admin=is_admin,
+        )
+        session.add(new_row)
+        session.commit()
+
+    return RedirectResponse("/users", status_code=303)
+
+
+@app.get("/users/{user_id}/edit", response_class=HTMLResponse)
+def edit_user_form(
+    user_id: int, request: Request, user: User = Depends(require_admin)
+):
+    with Session(engine) as session:
+        editing_user = session.get(User, user_id)
+        if not editing_user:
+            raise HTTPException(status_code=404, detail="User not found")
+    return render(
+        request,
+        "user_form.html",
+        {"user": user, "editing_user": editing_user, "error": None, "form": {}},
+    )
+
+
+@app.post("/users/{user_id}/edit")
+async def update_user(
+    user_id: int, request: Request, user: User = Depends(require_admin)
+):
+    form = await request.form()
+    username = str(form.get("username", "")).strip()
+    password = str(form.get("password", ""))
+    confirm_password = str(form.get("confirm_password", ""))
+    is_admin = form.get("is_admin") == "on"
+
+    with Session(engine) as session:
+        editing_user = session.get(User, user_id)
+        if not editing_user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        errors = []
+        if not username:
+            errors.append("Username is required.")
+        existing = session.exec(
+            select(User).where(User.username == username)
+        ).first()
+        if existing and existing.id != user_id:
+            errors.append(f"Username '{username}' is already taken.")
+
+        # Only validate password fields if the admin is actually trying to
+        # change one - leaving both blank means "keep the current password."
+        changing_password = bool(password or confirm_password)
+        if changing_password:
+            if len(password) < 8:
+                errors.append("New password must be at least 8 characters.")
+            if password != confirm_password:
+                errors.append("Passwords don't match.")
+
+        # Never allow the last remaining admin to be demoted - that would
+        # leave the app with no one able to manage users at all, and
+        # there's no other way back in without direct DB access.
+        if editing_user.is_admin and not is_admin:
+            other_admins = session.exec(
+                select(func.count())
+                .select_from(User)
+                .where(User.is_admin == True, User.id != user_id)  # noqa: E712
+            ).one()
+            if other_admins == 0:
+                errors.append(
+                    "Can't remove admin from the last remaining admin account."
+                )
+
+        if errors:
+            return render(
+                request,
+                "user_form.html",
+                {
+                    "user": user,
+                    "editing_user": editing_user,
+                    "error": " ".join(errors),
+                    "form": {"username": username, "is_admin": is_admin},
+                },
+            )
+
+        editing_user.username = username
+        editing_user.is_admin = is_admin
+        if changing_password:
+            editing_user.password_hash = hash_password(password)
+        session.add(editing_user)
+        session.commit()
+
+    return RedirectResponse("/users", status_code=303)
+
+
+@app.post("/users/{user_id}/delete")
+def delete_user(user_id: int, user: User = Depends(require_admin)):
+    if user_id == user.id:
+        raise HTTPException(
+            status_code=400, detail="You can't delete your own account while logged in."
+        )
+    with Session(engine) as session:
+        target = session.get(User, user_id)
+        if not target:
+            raise HTTPException(status_code=404, detail="User not found")
+        if target.is_admin:
+            other_admins = session.exec(
+                select(func.count())
+                .select_from(User)
+                .where(User.is_admin == True, User.id != user_id)  # noqa: E712
+            ).one()
+            if other_admins == 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Can't delete the last remaining admin account.",
+                )
+        session.delete(target)
+        session.commit()
+    return RedirectResponse("/users", status_code=303)

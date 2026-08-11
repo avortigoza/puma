@@ -16,6 +16,16 @@
 </div>
 {% endif %}
 
+{% if user.is_admin %}
+<div class="max-w-2xl mx-auto bg-white rounded-xl border border-gray-100 p-5 mb-6 flex items-center justify-between">
+  <div class="flex items-center gap-2 font-semibold text-gray-700">
+    {{ icon("user", "w-4 h-4 text-puma-primary") }}
+    Users
+  </div>
+  <a href="/users" class="text-sm text-puma-primary font-medium hover:underline">Manage Users &rarr;</a>
+</div>
+{% endif %}
+
 <form method="post" action="/settings" class="max-w-2xl mx-auto space-y-6">
 
   <div class="bg-white rounded-xl border border-gray-100 p-5 space-y-4">
