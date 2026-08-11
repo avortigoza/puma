@@ -125,7 +125,7 @@ def time_ago(value: Optional[datetime]) -> str:
     delta = datetime.now(timezone.utc) - value
     seconds = int(delta.total_seconds())
     if seconds < 60:
-        return "just now"
+        return "Just Now"
     minutes = seconds // 60
     if minutes < 60:
         return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
