@@ -124,7 +124,7 @@ bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
           </div>
         </td>
         <td class="px-5 py-3">
-          <div>{{ app.installed_version_raw or app.installed_version or "—" }}</div>
+          <div>{{ app.installed_version or "—" }}</div>
           {% if app.installed_version and app.last_checked_at %}
           <div class="text-[11px] text-gray-400">({{ app.last_checked_at | shortdate }})</div>
           {% endif %}
