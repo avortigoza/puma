@@ -52,11 +52,18 @@ def check_app(app_row: MonitoredApp, client: httpx.Client) -> ReleaseObservation
                      if versioning.extract(r.raw_tag, app_row.version_pattern) == best),
                     None,
                 )
+                is_new_latest = best != app_row.latest_version
                 app_row.latest_version = best
                 app_row.latest_version_raw = match.raw_tag if match else best
                 app_row.latest_published_at = match.published_at if match else None
                 app_row.latest_release_url = match.url if match else None
-                app_row.latest_seen_at = datetime.now(timezone.utc)
+                # Only stamp "first seen" on a genuine change - this is the
+                # fallback used for display when the source has no real
+                # published_at (e.g. Stanza's page scrape). Updating it on
+                # every check regardless of change defeats the point: it
+                # would always just show "whenever I last looked."
+                if is_new_latest or not app_row.latest_seen_at:
+                    app_row.latest_seen_at = datetime.now(timezone.utc)
                 obs.version = best
                 obs.version_raw = app_row.latest_version_raw
                 obs.published_at = app_row.latest_published_at
@@ -78,10 +85,21 @@ def check_app(app_row: MonitoredApp, client: httpx.Client) -> ReleaseObservation
                 presult = probe.fetch()
                 if presult.releases:
                     raw = presult.releases[0].raw_tag
+                    probe_published_at = presult.releases[0].published_at
                     installed = versioning.extract(raw, app_row.version_pattern)
                     if installed:
+                        is_new_installed = installed != app_row.installed_version
                         app_row.installed_version = installed
                         app_row.installed_version_raw = raw
+                        # Real signal where the probe supports it (local
+                        # file mtime, git commit date); "first detected"
+                        # fallback otherwise. Only stamped on a genuine
+                        # version change, not every check - same reasoning
+                        # as latest_seen_at above.
+                        if is_new_installed or not app_row.installed_version_changed_at:
+                            app_row.installed_version_changed_at = (
+                                probe_published_at or datetime.now(timezone.utc)
+                            )
             except adapters.SourceUnavailable:
                 pass
 

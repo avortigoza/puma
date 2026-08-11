@@ -75,6 +75,11 @@ class MonitoredApp(SQLModel, table=True):
     instance_url: Optional[str] = None                   # https://vle.pstprd.one
     installed_version: Optional[str] = None              # manual, or probed
     installed_version_raw: Optional[str] = None           # original probe value, before regex extraction
+    installed_version_changed_at: Optional[datetime] = None  # when this version was first
+                                                            # confirmed - real file-mtime/commit
+                                                            # date where the probe supports it
+                                                            # (local_file_regex, git_local_tag),
+                                                            # else "when PUMA first detected it"
     installed_probe: Optional[str] = None                # adapters key, optional
     installed_probe_config: dict[str, Any] = Field(
         default_factory=dict, sa_column=Column(JSON)

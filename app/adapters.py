@@ -11,10 +11,11 @@ whole trick behind "add an app from the GUI".
 
 from __future__ import annotations
 
+import os
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, ClassVar, Optional
 
 import httpx
@@ -289,8 +290,16 @@ class LocalFileRegex(SourceAdapter):
         except OSError as e:
             raise SourceUnavailable(f"cannot read {path}: {e}") from e
         found = re.findall(self.config["pattern"], text)
+        # The file's own mtime is a real signal for "when was this actually
+        # installed/upgraded" - unlike a bare version string, an upgrade
+        # process genuinely rewrites this file at the moment it runs, so
+        # this isn't a guess or a "when did PUMA last look" proxy.
+        try:
+            mtime = datetime.fromtimestamp(os.path.getmtime(path), tz=timezone.utc)
+        except OSError:
+            mtime = None
         rels = [
-            Release(raw_tag=m if isinstance(m, str) else m[0])
+            Release(raw_tag=m if isinstance(m, str) else m[0], published_at=mtime)
             for m in found
         ]
         return FetchResult(rels)
@@ -332,7 +341,25 @@ class GitLocalTag(SourceAdapter):
         tag = proc.stdout.strip()
         if not tag:
             return FetchResult([])
-        return FetchResult([Release(raw_tag=tag)])
+
+        # HEAD's actual commit date is a real signal for when this code was
+        # last updated - not as precise as a true "when did the upgrade run"
+        # timestamp, but meaningfully closer to true than "when did PUMA
+        # last happen to check." Best-effort: a failure here shouldn't sink
+        # the whole probe, since the tag itself is the important part.
+        commit_date = None
+        try:
+            date_proc = subprocess.run(
+                ["git", "-c", f"safe.directory={path}", "-C", path,
+                 "log", "-1", "--format=%cI"],
+                capture_output=True, text=True, timeout=10, check=False,
+            )
+            if date_proc.returncode == 0 and date_proc.stdout.strip():
+                commit_date = datetime.fromisoformat(date_proc.stdout.strip())
+        except (OSError, ValueError):
+            pass
+
+        return FetchResult([Release(raw_tag=tag, published_at=commit_date)])
 
 
 @register
