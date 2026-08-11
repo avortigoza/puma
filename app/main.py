@@ -103,14 +103,16 @@ def get_trusted_hosts(session: Session) -> list[str]:
     return [h.strip().lower() for h in raw.split(",") if h.strip()]
 
 
-def get_dashboard_visible_app_ids(session: Session) -> Optional[set[int]]:
-    """None means 'show all' (the default, and also what an empty setting
-    means) - a real set means only those app IDs should appear in the
-    Dashboard's Applications table. Doesn't affect the KPI counts or the
-    standalone /applications page, which always reflect every app."""
-    raw = get_setting(session, "dashboard_visible_app_ids", "")
+def get_dashboard_hidden_app_ids(session: Session) -> set[int]:
+    """The set of app IDs explicitly hidden from the Dashboard's table -
+    a blocklist, not an allowlist. Anything NOT in this set shows by
+    default, including apps added after this setting was last saved -
+    the opposite of storing "visible" IDs, which would require someone
+    to remember to go add every new app to the list or it silently
+    never appears."""
+    raw = get_setting(session, "dashboard_hidden_app_ids", "")
     if not raw.strip():
-        return None
+        return set()
     return {int(x) for x in raw.split(",") if x.strip().isdigit()}
 
 
@@ -721,10 +723,8 @@ def dashboard(request: Request, user: User = Depends(require_login)):
             == "true"
         )
 
-        visible_ids = get_dashboard_visible_app_ids(session)
-        dashboard_table_apps = (
-            apps if visible_ids is None else [a for a in apps if a.id in visible_ids]
-        )
+        hidden_ids = get_dashboard_hidden_app_ids(session)
+        dashboard_table_apps = [a for a in apps if a.id not in hidden_ids]
 
     return templates.TemplateResponse(
         request,
@@ -823,7 +823,7 @@ def settings_page(request: Request, saved: int = 0, user: User = Depends(require
             ),
         }
         all_apps = session.exec(select(MonitoredApp).order_by(MonitoredApp.name)).all()
-        visible_ids = get_dashboard_visible_app_ids(session)
+        hidden_ids = get_dashboard_hidden_app_ids(session)
     return templates.TemplateResponse(
         request,
         "settings.html",
@@ -832,10 +832,11 @@ def settings_page(request: Request, saved: int = 0, user: User = Depends(require
             "current": current,
             "saved": bool(saved),
             "all_apps": all_apps,
-            # None means "show all" - every checkbox should render checked
-            "dashboard_visible_ids": (
-                {a.id for a in all_apps} if visible_ids is None else visible_ids
-            ),
+            # Checkbox semantics stay "checked = visible" in the UI, even
+            # though what's stored underneath is the hidden set - so a
+            # checkbox is checked whenever its app ID is NOT in the
+            # hidden set.
+            "dashboard_visible_ids": {a.id for a in all_apps} - hidden_ids,
         },
     )
 
@@ -864,14 +865,14 @@ async def update_settings(request: Request, user: User = Depends(require_login))
     dashboard_show_applications_table = (
         "true" if form.get("dashboard_show_applications_table") == "on" else "false"
     )
-    # Whatever's checked at save time, stored literally - if every app is
-    # checked that's functionally "show all" today, but a NEW app added
-    # later won't auto-appear until it's explicitly checked here too.
-    # Predictable > magic: no special-casing "all checked" back to an
-    # empty/show-all sentinel.
-    dashboard_visible_app_ids = ",".join(
-        form.getlist("dashboard_visible_app_ids")
-    )
+    # The checkbox list in the form is "checked = visible" (matches what
+    # the person actually sees and clicks), but what we store is the
+    # inverse - which ones are HIDDEN - so an app that doesn't exist yet
+    # at save time is simply absent from the hidden set and shows up
+    # automatically once it's added, no need to revisit this page.
+    checked_ids = {
+        int(x) for x in form.getlist("dashboard_visible_app_ids") if x.isdigit()
+    }
     trusted_hosts_raw = str(form.get("trusted_hosts", ""))
     hosts = [h.strip().lower() for h in trusted_hosts_raw.splitlines() if h.strip()]
     # de-duplicate while preserving order, so repeated pastes don't grow forever
@@ -893,7 +894,15 @@ async def update_settings(request: Request, user: User = Depends(require_login))
             "dashboard_show_applications_table",
             dashboard_show_applications_table,
         )
-        set_setting(session, "dashboard_visible_app_ids", dashboard_visible_app_ids)
+        all_app_ids = {
+            a.id for a in session.exec(select(MonitoredApp)).all()
+        }
+        hidden_ids = all_app_ids - checked_ids
+        set_setting(
+            session,
+            "dashboard_hidden_app_ids",
+            ",".join(str(i) for i in sorted(hidden_ids)),
+        )
         session.commit()
 
     return RedirectResponse("/settings?saved=1", status_code=303)
