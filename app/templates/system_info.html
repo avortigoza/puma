@@ -16,12 +16,12 @@
       {{ icon("monitor", "w-4 h-4 text-puma-primary") }}
       Server
     </div>
-    <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2.5 text-sm items-start">
-      <dt class="text-gray-500">Hostname</dt><dd class="text-gray-800 font-mono text-xs">{{ info.hostname }}</dd>
-      <dt class="text-gray-500">OS</dt><dd class="text-gray-800">{{ info.os }}</dd>
-      <dt class="text-gray-500">Python</dt><dd class="text-gray-800">{{ info.python_version }}</dd>
-      <dt class="text-gray-500">PUMA version</dt><dd class="text-gray-800">{{ info.puma_version }}</dd>
-      <dt class="text-gray-500">Uptime</dt><dd class="text-gray-800">{{ info.uptime }}</dd>
+    <dl class="text-sm space-y-2">
+      <div class="flex justify-between"><dt class="text-gray-500">Hostname</dt><dd class="text-gray-800 font-mono text-xs">{{ info.hostname }}</dd></div>
+      <div class="flex justify-between"><dt class="text-gray-500">OS</dt><dd class="text-gray-800">{{ info.os }}</dd></div>
+      <div class="flex justify-between"><dt class="text-gray-500">Python</dt><dd class="text-gray-800">{{ info.python_version }}</dd></div>
+      <div class="flex justify-between"><dt class="text-gray-500">PUMA version</dt><dd class="text-gray-800">{{ info.puma_version }}</dd></div>
+      <div class="flex justify-between"><dt class="text-gray-500">Uptime</dt><dd class="text-gray-800">{{ info.uptime }}</dd></div>
     </dl>
   </div>
 
@@ -30,10 +30,10 @@
       {{ icon("clock", "w-4 h-4 text-puma-primary") }}
       Time
     </div>
-    <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2.5 text-sm items-start">
-      <dt class="text-gray-500">Server time (UTC)</dt><dd class="text-gray-800 font-mono text-xs">{{ info.server_time_utc }}</dd>
-      <dt class="text-gray-500">Display timezone</dt><dd class="text-gray-800">{{ info.display_timezone }}</dd>
-      <dt class="text-gray-500">Local time</dt><dd class="text-gray-800 font-mono text-xs">{{ info.server_time_local }}</dd>
+    <dl class="text-sm space-y-2">
+      <div class="flex justify-between"><dt class="text-gray-500">Server time (UTC)</dt><dd class="text-gray-800 font-mono text-xs">{{ info.server_time_utc }}</dd></div>
+      <div class="flex justify-between"><dt class="text-gray-500">Display timezone</dt><dd class="text-gray-800">{{ info.display_timezone }}</dd></div>
+      <div class="flex justify-between"><dt class="text-gray-500">Local time</dt><dd class="text-gray-800 font-mono text-xs">{{ info.server_time_local }}</dd></div>
     </dl>
     <p class="text-xs text-gray-400 pt-1">
       Everything is stored internally as UTC; this is just for display, converted to the timezone above.
@@ -45,9 +45,9 @@
       {{ icon("check-circle", "w-4 h-4 text-puma-primary") }}
       Database
     </div>
-    <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2.5 text-sm items-start">
-      <dt class="text-gray-500">Path</dt><dd class="text-gray-800 font-mono text-xs break-all">{{ info.db_path }}</dd>
-      <dt class="text-gray-500">Size</dt><dd class="text-gray-800">{{ info.db_size }}</dd>
+    <dl class="text-sm space-y-2">
+      <div class="flex justify-between"><dt class="text-gray-500">Path</dt><dd class="text-gray-800 font-mono text-xs break-all text-right">{{ info.db_path }}</dd></div>
+      <div class="flex justify-between"><dt class="text-gray-500">Size</dt><dd class="text-gray-800">{{ info.db_size }}</dd></div>
     </dl>
   </div>
 
@@ -56,10 +56,10 @@
       {{ icon("grid", "w-4 h-4 text-puma-primary") }}
       Data
     </div>
-    <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2.5 text-sm items-start">
-      <dt class="text-gray-500">Monitored applications</dt><dd class="text-gray-800">{{ info.total_apps }} ({{ info.enabled_apps }} enabled)</dd>
-      <dt class="text-gray-500">Check runs, all-time</dt><dd class="text-gray-800">{{ info.total_runs }}</dd>
-      <dt class="text-gray-500">Notifications, all-time</dt><dd class="text-gray-800">{{ info.total_notifications }}</dd>
+    <dl class="text-sm space-y-2">
+      <div class="flex justify-between"><dt class="text-gray-500">Monitored applications</dt><dd class="text-gray-800">{{ info.total_apps }} ({{ info.enabled_apps }} enabled)</dd></div>
+      <div class="flex justify-between"><dt class="text-gray-500">Check runs, all-time</dt><dd class="text-gray-800">{{ info.total_runs }}</dd></div>
+      <div class="flex justify-between"><dt class="text-gray-500">Notifications, all-time</dt><dd class="text-gray-800">{{ info.total_notifications }}</dd></div>
     </dl>
   </div>
 
