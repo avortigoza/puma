@@ -18,6 +18,10 @@
 </div>
 
 <div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
+  <div class="flex items-center gap-2 font-semibold text-gray-700 px-5 pt-4 pb-3 border-b border-gray-100">
+    {{ icon("bell", "w-4 h-4 text-puma-primary") }}
+    All Notifications
+  </div>
   {% if notifs %}
   <div class="divide-y divide-gray-100">
     {% for n in notifs %}
