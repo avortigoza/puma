@@ -263,24 +263,24 @@ bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
     <div class="text-sm">
       <div class="flex items-center justify-between px-4 h-10 border-b border-gray-100">
         <span class="flex items-center gap-2 text-gray-500 text-xs">{{ icon("clock", "w-3.5 h-3.5 text-puma-primary") }} Auto Check</span>
-        <span class="text-puma-primary font-medium text-xs">
+        <span class="inline-block bg-puma-primary-light text-puma-primary font-medium text-xs px-2.5 py-1 rounded-full whitespace-nowrap">
           {{ "Enabled" if settings_overview.auto_check_enabled == "true" else "Disabled" }}
           (Every {{ (settings_overview.auto_check_interval_minutes|int // 60) }}h)
         </span>
       </div>
       <div class="flex items-center justify-between px-4 h-10 border-b border-gray-100">
         <span class="flex items-center gap-2 text-gray-500 text-xs">{{ icon("clock", "w-3.5 h-3.5 text-puma-primary") }} Update Source Timeout</span>
-        <span class="text-puma-primary font-medium text-xs">{{ settings_overview.update_source_timeout_seconds }} seconds</span>
+        <span class="inline-block bg-puma-primary-light text-puma-primary font-medium text-xs px-2.5 py-1 rounded-full whitespace-nowrap">{{ settings_overview.update_source_timeout_seconds }} seconds</span>
       </div>
       <div class="flex items-center justify-between px-4 h-10 border-b border-gray-100">
         <span class="flex items-center gap-2 text-gray-500 text-xs">{{ icon("bell", "w-3.5 h-3.5 text-puma-primary") }} Notifications</span>
-        <span class="text-puma-primary font-medium text-xs">
+        <span class="inline-block bg-puma-primary-light text-puma-primary font-medium text-xs px-2.5 py-1 rounded-full whitespace-nowrap">
           {{ "Enabled" if settings_overview.notifications_enabled == "true" else "Disabled" }}
         </span>
       </div>
       <div class="flex items-center justify-between px-4 h-10 border-b border-gray-100">
         <span class="flex items-center gap-2 text-gray-500 text-xs">{{ icon("check-circle", "w-3.5 h-3.5 text-puma-primary") }} Trusted Hosts</span>
-        <span class="text-puma-primary font-medium text-xs">{{ settings_overview.trusted_hosts_count }} configured</span>
+        <span class="inline-block bg-puma-primary-light text-puma-primary font-medium text-xs px-2.5 py-1 rounded-full whitespace-nowrap">{{ settings_overview.trusted_hosts_count }} configured</span>
       </div>
     </div>
     <div class="flex items-center justify-end px-4 h-10 mt-auto">
