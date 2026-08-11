@@ -161,7 +161,8 @@ bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
           <a href="{{ app.instance_url }}" target="_blank" class="text-puma-primary hover:underline text-xs">{{ app.instance_url }}</a>
           {% else %}—{% endif %}
         </td>
-        <td class="px-5 py-3 text-xs text-gray-400">{{ app.last_checked_at | timeago }}</td>
+        <td class="px-5 py-3 text-xs text-gray-400 last-checked-cell"
+            data-last-checked="{{ app.last_checked_at.isoformat() if app.last_checked_at else '' }}">{{ app.last_checked_at | timeago }}</td>
         <td class="px-5 py-3">
           <div class="flex items-center gap-1.5">
             <form method="post" action="/applications/{{ app.id }}/check">
@@ -303,9 +304,10 @@ bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
     });
   });
 
-  // Keep "Last Check" ticking live in the browser (e.g. "17 hours ago" ->
-  // "18 hours ago") without needing a full page reload. Mirrors the same
-  // wording buckets as the server-side timeago filter in main.py.
+  // Keep every relative "X ago" timestamp ticking live in the browser -
+  // the "Last Check" KPI card and each app row's "Last Checked" column -
+  // without needing a full page reload. Mirrors the same wording buckets
+  // as the server-side timeago filter in main.py.
   function formatTimeAgo(isoString) {
     var then = new Date(isoString);
     var seconds = Math.floor((Date.now() - then.getTime()) / 1000);
@@ -319,13 +321,18 @@ bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
   }
 
   (function () {
-    var el = document.getElementById('last-check-text');
-    if (!el) return;
-    var iso = el.getAttribute('data-last-checked');
-    if (!iso) return; // "Never" - nothing to tick
-    setInterval(function () {
-      el.textContent = formatTimeAgo(iso);
-    }, 30000);
+    function tickAll() {
+      var kpiEl = document.getElementById('last-check-text');
+      if (kpiEl) {
+        var kpiIso = kpiEl.getAttribute('data-last-checked');
+        if (kpiIso) kpiEl.textContent = formatTimeAgo(kpiIso);
+      }
+      document.querySelectorAll('.last-checked-cell').forEach(function (cell) {
+        var iso = cell.getAttribute('data-last-checked');
+        if (iso) cell.textContent = formatTimeAgo(iso);
+      });
+    }
+    setInterval(tickAll, 30000);
   })();
 </script>
 {% endblock %}
