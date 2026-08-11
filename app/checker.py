@@ -129,7 +129,7 @@ def run_check(
         query = query.where(MonitoredApp.id.in_(app_ids))
     app_rows = list(session.exec(query).all())
 
-    run = CheckRun(trigger=trigger)
+    run = CheckRun(trigger=trigger, is_full_check=not bool(app_ids))
     session.add(run)
     session.commit()
     session.refresh(run)

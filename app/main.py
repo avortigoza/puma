@@ -689,8 +689,16 @@ def dashboard(request: Request, user: User = Depends(require_login)):
         up_to_date = sum(
             1 for a in apps if a.installed_version and not a.update_available
         )
-        checked_times = [a.last_checked_at for a in apps if a.last_checked_at]
-        last_checked = max(checked_times) if checked_times else None
+        # Only a full sweep (Check All Now or the scheduler) counts here -
+        # checking a single app from its row shouldn't make this say
+        # "Just Now" when the other six apps haven't been touched in hours.
+        last_full_run = session.exec(
+            select(CheckRun)
+            .where(CheckRun.is_full_check == True)  # noqa: E712
+            .order_by(CheckRun.started_at.desc())
+            .limit(1)
+        ).first()
+        last_checked = last_full_run.started_at if last_full_run else None
 
         unread_notifications = session.exec(
             select(func.count()).select_from(Notification).where(

@@ -136,6 +136,10 @@ class CheckRun(SQLModel, table=True):
     apps_checked: int = 0
     updates_found: int = 0
     errors: int = 0
+    is_full_check: bool = True  # False for a single-app "Check Now" click -
+                                  # the Dashboard's "Last Check" KPI only
+                                  # counts full sweeps (Check All Now or
+                                  # the scheduler), not individual apps
 
 
 class ReleaseObservation(SQLModel, table=True):
