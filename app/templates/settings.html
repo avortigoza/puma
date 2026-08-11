@@ -102,7 +102,7 @@
         <label class="flex items-center gap-2 text-sm text-gray-600">
           <input type="checkbox" name="dashboard_visible_app_ids" value="{{ a.id }}"
                  {% if a.id in dashboard_visible_ids %}checked{% endif %}
-                 class="rounded border-gray-300 accent-puma-primary focus:ring-puma-primary/30">
+                 class="rounded border-puma-primary accent-puma-primary focus:ring-puma-primary/30">
           {{ a.name }}
         </label>
         {% endfor %}
