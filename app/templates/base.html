@@ -60,16 +60,17 @@
 
     <nav class="flex-1 px-3 space-y-1">
       {% set nav_items = [
-        ("home", "Dashboard", "/", true),
-        ("grid", "Applications", "#", false),
-        ("refresh", "Check Updates", "#", false),
-        ("clock", "History", "#", false),
-        ("bell", "Notifications", "#", false),
-        ("settings", "Settings", "#", false),
-        ("monitor", "System Info", "#", false),
-        ("info", "About", "#", false),
+        ("home", "Dashboard", "/"),
+        ("grid", "Applications", "#"),
+        ("refresh", "Check Updates", "#"),
+        ("clock", "History", "/history"),
+        ("bell", "Notifications", "#"),
+        ("settings", "Settings", "#"),
+        ("monitor", "System Info", "#"),
+        ("info", "About", "#"),
       ] %}
-      {% for icon_name, label, href, active in nav_items %}
+      {% for icon_name, label, href in nav_items %}
+      {% set active = href != "#" and request is defined and request.url.path == href %}
       <a href="{{ href }}"
          class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition
                 {% if active %}bg-puma-primary-light text-puma-primary border-l-2 border-puma-primary

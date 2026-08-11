@@ -647,3 +647,51 @@ def dashboard(request: Request, user: User = Depends(require_login)):
             "settings_overview": settings_overview,
         },
     )
+
+
+HISTORY_PAGE_SIZE = 20
+
+
+@app.get("/history", response_class=HTMLResponse)
+def history(request: Request, page: int = 1, user: User = Depends(require_login)):
+    with Session(engine) as session:
+        total_runs = session.exec(select(func.count()).select_from(CheckRun)).one()
+        total_pages = max(1, (total_runs + HISTORY_PAGE_SIZE - 1) // HISTORY_PAGE_SIZE)
+        page = max(1, min(page, total_pages))
+
+        runs = session.exec(
+            select(CheckRun)
+            .order_by(CheckRun.started_at.desc())
+            .offset((page - 1) * HISTORY_PAGE_SIZE)
+            .limit(HISTORY_PAGE_SIZE)
+        ).all()
+
+        run_ids = [r.id for r in runs]
+        observations = (
+            session.exec(
+                select(ReleaseObservation)
+                .where(ReleaseObservation.check_run_id.in_(run_ids))
+                .order_by(ReleaseObservation.checked_at)
+            ).all()
+            if run_ids
+            else []
+        )
+        apps_by_id = {a.id: a for a in session.exec(select(MonitoredApp)).all()}
+
+        obs_by_run: dict[int, list] = {}
+        for obs in observations:
+            obs_by_run.setdefault(obs.check_run_id, []).append(obs)
+
+    return templates.TemplateResponse(
+        request,
+        "history.html",
+        {
+            "user": user,
+            "runs": runs,
+            "obs_by_run": obs_by_run,
+            "apps_by_id": apps_by_id,
+            "page": page,
+            "total_pages": total_pages,
+            "total_runs": total_runs,
+        },
+    )
