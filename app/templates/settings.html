@@ -73,6 +73,22 @@
 
   <div class="bg-white rounded-xl border border-gray-100 p-5 space-y-4">
     <div class="flex items-center gap-2 font-semibold text-gray-700">
+      {{ icon("grid", "w-4 h-4 text-puma-primary") }}
+      Dashboard Layout
+    </div>
+    <label class="flex items-center gap-2 text-sm text-gray-600">
+      <input type="checkbox" name="dashboard_show_applications_table"
+             {% if current.dashboard_show_applications_table == "true" %}checked{% endif %}
+             class="rounded border-gray-300 text-puma-primary focus:ring-puma-primary/30">
+      Show the full Applications table on the Dashboard
+    </label>
+    <p class="text-xs text-gray-400">
+      The Applications table is always available on its own page via the sidebar. Turn this off to keep the Dashboard to just the summary cards and recent activity.
+    </p>
+  </div>
+
+  <div class="bg-white rounded-xl border border-gray-100 p-5 space-y-4">
+    <div class="flex items-center gap-2 font-semibold text-gray-700">
       {{ icon("check-circle", "w-4 h-4 text-puma-primary") }}
       Trusted Hosts
     </div>

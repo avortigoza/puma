@@ -61,7 +61,7 @@
     <nav class="flex-1 px-3 space-y-1">
       {% set nav_items = [
         ("home", "Dashboard", "/"),
-        ("grid", "Applications", "#"),
+        ("grid", "Applications", "/applications"),
         ("refresh", "Check Updates", "#"),
         ("clock", "History", "/history"),
         ("bell", "Notifications", "#"),
@@ -116,5 +116,64 @@
     </main>
   </div>
 </div>
+
+<script>
+  // Shared across every page - the per-app "more actions" dropdown menu
+  // (used wherever the applications table appears: Dashboard, Applications)
+  function togglePumaMenu(event, menuId) {
+    event.stopPropagation();
+    document.querySelectorAll('.puma-app-menu').forEach(function (m) {
+      if (m.id !== menuId) m.classList.add('hidden');
+    });
+    document.getElementById(menuId).classList.toggle('hidden');
+  }
+  document.addEventListener('click', function () {
+    document.querySelectorAll('.puma-app-menu').forEach(function (m) {
+      m.classList.add('hidden');
+    });
+  });
+
+  // Keep every relative "X ago" timestamp ticking live in the browser -
+  // the Dashboard's "Last Check" KPI card and each app row's "Last
+  // Checked" column, wherever that table appears - without needing a
+  // full page reload. Deliberately does NOT parse or compare Date
+  // objects: the server sends a plain integer ("this many seconds old
+  // as of render time"), and every tick just adds 30 to it. Pure
+  // arithmetic, so there's no dependency on the browser's clock
+  // agreeing with the server's, no ISO-string parsing edge cases - the
+  // class of bug that a Date-comparison approach is exposed to simply
+  // can't happen here. No-ops harmlessly on pages with neither element.
+  function formatFromSeconds(seconds) {
+    if (seconds < 60) return "Just Now";
+    var minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return minutes + " minute" + (minutes !== 1 ? "s" : "") + " ago";
+    var hours = Math.floor(minutes / 60);
+    if (hours < 24) return hours + " hour" + (hours !== 1 ? "s" : "") + " ago";
+    var days = Math.floor(hours / 24);
+    return days + " day" + (days !== 1 ? "s" : "") + " ago";
+  }
+
+  (function () {
+    var TICK_MS = 30000;
+
+    function bump(el) {
+      var base = parseInt(el.getAttribute('data-seconds-ago'), 10);
+      if (isNaN(base)) return;
+      var elapsed = parseInt(el.getAttribute('data-elapsed-ticks') || '0', 10);
+      elapsed += TICK_MS / 1000;
+      el.setAttribute('data-elapsed-ticks', String(elapsed));
+      el.textContent = formatFromSeconds(base + elapsed);
+    }
+
+    function tickAll() {
+      var kpiEl = document.getElementById('last-check-text');
+      if (kpiEl) bump(kpiEl);
+      document.querySelectorAll('.last-checked-cell').forEach(bump);
+    }
+
+    setInterval(tickAll, TICK_MS);
+  })();
+</script>
+{% block scripts %}{% endblock %}
 </body>
 </html>

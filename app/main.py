@@ -684,6 +684,11 @@ def dashboard(request: Request, user: User = Depends(require_login)):
             ) if get_setting(session, "trusted_hosts", "") else 0,
         }
 
+        show_apps_table = (
+            get_setting(session, "dashboard_show_applications_table", "true")
+            == "true"
+        )
+
     return templates.TemplateResponse(
         request,
         "dashboard.html",
@@ -697,7 +702,19 @@ def dashboard(request: Request, user: User = Depends(require_login)):
             "unread_notifications": unread_notifications,
             "recent_runs": recent_runs,
             "settings_overview": settings_overview,
+            "show_apps_table": show_apps_table,
         },
+    )
+
+
+@app.get("/applications", response_class=HTMLResponse)
+def applications_page(request: Request, user: User = Depends(require_login)):
+    with Session(engine) as session:
+        apps = session.exec(select(MonitoredApp).order_by(MonitoredApp.name)).all()
+    return templates.TemplateResponse(
+        request,
+        "applications.html",
+        {"user": user, "apps": apps},
     )
 
 
@@ -764,6 +781,9 @@ def settings_page(request: Request, saved: int = 0, user: User = Depends(require
                 session, "notifications_enabled", "true"
             ),
             "trusted_hosts": get_trusted_hosts(session),
+            "dashboard_show_applications_table": get_setting(
+                session, "dashboard_show_applications_table", "true"
+            ),
         }
     return templates.TemplateResponse(
         request,
@@ -793,6 +813,9 @@ async def update_settings(request: Request, user: User = Depends(require_login))
     notifications_enabled = (
         "true" if form.get("notifications_enabled") == "on" else "false"
     )
+    dashboard_show_applications_table = (
+        "true" if form.get("dashboard_show_applications_table") == "on" else "false"
+    )
     trusted_hosts_raw = str(form.get("trusted_hosts", ""))
     hosts = [h.strip().lower() for h in trusted_hosts_raw.splitlines() if h.strip()]
     # de-duplicate while preserving order, so repeated pastes don't grow forever
@@ -809,6 +832,11 @@ async def update_settings(request: Request, user: User = Depends(require_login))
         )
         set_setting(session, "notifications_enabled", notifications_enabled)
         set_setting(session, "trusted_hosts", ",".join(deduped_hosts))
+        set_setting(
+            session,
+            "dashboard_show_applications_table",
+            dashboard_show_applications_table,
+        )
         session.commit()
 
     return RedirectResponse("/settings?saved=1", status_code=303)
