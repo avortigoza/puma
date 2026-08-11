@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+{% from "base.html" import icon %}
+
+<div class="max-w-2xl mx-auto mb-6">
+  <a href="/" class="text-sm text-gray-400 hover:text-puma-primary">&larr; Back to Dashboard</a>
+  <h1 class="text-2xl font-bold text-gray-800 mt-2">Settings</h1>
+  <p class="text-gray-400 text-sm mt-1">Configure how PUMA checks for updates and what it trusts.</p>
+</div>
+
+{% if saved %}
+<div class="max-w-2xl mx-auto bg-green-50 text-puma-green text-sm rounded-lg px-4 py-3 mb-4 flex items-center gap-2">
+  {{ icon("check-circle", "w-4 h-4") }}
+  Settings saved.
+</div>
+{% endif %}
+
+<form method="post" action="/settings" class="max-w-2xl mx-auto space-y-6">
+
+  <div class="bg-white rounded-xl border border-gray-100 p-5 space-y-4">
+    <div class="flex items-center gap-2 font-semibold text-gray-700">
+      {{ icon("clock", "w-4 h-4 text-puma-primary") }}
+      Auto Check
+    </div>
+    <label class="flex items-center gap-2 text-sm text-gray-600">
+      <input type="checkbox" name="auto_check_enabled"
+             {% if current.auto_check_enabled == "true" %}checked{% endif %}
+             class="rounded border-gray-300 text-puma-primary focus:ring-puma-primary/30">
+      Automatically check all applications on a schedule
+    </label>
+    <div>
+      <label class="block text-sm font-medium text-gray-600 mb-1">Check Interval</label>
+      <select name="auto_check_interval_minutes"
+              class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+        {% for minutes, label in [(60,"Every hour"),(180,"Every 3 hours"),(360,"Every 6 hours"),(720,"Every 12 hours"),(1440,"Daily")] %}
+        <option value="{{ minutes }}" {% if current.auto_check_interval_minutes|int == minutes %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <p class="text-xs text-gray-400 mt-1">How often the scheduled sweep runs across every enabled application.</p>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl border border-gray-100 p-5 space-y-4">
+    <div class="flex items-center gap-2 font-semibold text-gray-700">
+      {{ icon("clock", "w-4 h-4 text-puma-primary") }}
+      Update Source Timeout
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-gray-600 mb-1">Seconds</label>
+      <input type="number" name="update_source_timeout_seconds" min="5" max="300"
+             value="{{ current.update_source_timeout_seconds }}"
+             class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+      <p class="text-xs text-gray-400 mt-1">How long PUMA waits for a single source or probe to respond before giving up on it.</p>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl border border-gray-100 p-5 space-y-4">
+    <div class="flex items-center gap-2 font-semibold text-gray-700">
+      {{ icon("bell", "w-4 h-4 text-puma-primary") }}
+      Notifications
+    </div>
+    <label class="flex items-center gap-2 text-sm text-gray-600">
+      <input type="checkbox" name="notifications_enabled"
+             {% if current.notifications_enabled == "true" %}checked{% endif %}
+             class="rounded border-gray-300 text-puma-primary focus:ring-puma-primary/30">
+      Queue a notification when a genuinely newer version is found
+    </label>
+    <p class="text-xs text-gray-400">
+      This controls whether notifications are queued internally. Delivery (email, Slack, etc.) isn't wired up yet - queued notifications are visible in-app but nothing external is sent.
+    </p>
+  </div>
+
+  <div class="bg-white rounded-xl border border-gray-100 p-5 space-y-4">
+    <div class="flex items-center gap-2 font-semibold text-gray-700">
+      {{ icon("check-circle", "w-4 h-4 text-puma-primary") }}
+      Trusted Hosts
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-gray-600 mb-1">Allowed hosts (one per line)</label>
+      <textarea name="trusted_hosts" rows="8"
+                placeholder="e.g. gitlab.com&#10;docs.gitlab.com&#10;10.0.1.214"
+                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-puma-primary/30">{% for host in current.trusted_hosts %}{{ host }}
+{% endfor %}</textarea>
+      <p class="text-xs text-gray-400 mt-1">
+        Any adapter that contacts a URL you provide (GitLab releases, GLPI, Stanza, Atom feeds, JSON/HTML scraping, HTTP headers) can only reach hosts listed here. This is what stops a misconfigured or malicious source from being pointed at an internal service.
+      </p>
+    </div>
+  </div>
+
+  <div class="flex items-center gap-3">
+    <button type="submit"
+            class="bg-puma-primary hover:bg-puma-primary-dark text-white font-medium rounded-lg px-5 py-2 text-sm transition">
+      Save Changes
+    </button>
+    <a href="/" class="text-sm text-gray-500 hover:text-puma-primary">Cancel</a>
+  </div>
+
+</form>
+{% endblock %}

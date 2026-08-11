@@ -80,6 +80,16 @@ def get_setting(session: Session, key: str, default: str) -> str:
     return row.value if row else default
 
 
+def set_setting(session: Session, key: str, value: str) -> None:
+    row = session.get(Setting, key)
+    if row:
+        row.value = value
+        row.updated_at = datetime.now(timezone.utc)
+    else:
+        row = Setting(key=key, value=value)
+    session.add(row)
+
+
 def get_trusted_hosts(session: Session) -> list[str]:
     raw = get_setting(session, "trusted_hosts", "")
     return [h.strip().lower() for h in raw.split(",") if h.strip()]
@@ -695,3 +705,68 @@ def history(request: Request, page: int = 1, user: User = Depends(require_login)
             "total_runs": total_runs,
         },
     )
+
+
+@app.get("/settings", response_class=HTMLResponse)
+def settings_page(request: Request, saved: int = 0, user: User = Depends(require_login)):
+    with Session(engine) as session:
+        current = {
+            "auto_check_enabled": get_setting(session, "auto_check_enabled", "true"),
+            "auto_check_interval_minutes": get_setting(
+                session, "auto_check_interval_minutes", "360"
+            ),
+            "update_source_timeout_seconds": get_setting(
+                session, "update_source_timeout_seconds", "30"
+            ),
+            "notifications_enabled": get_setting(
+                session, "notifications_enabled", "true"
+            ),
+            "trusted_hosts": get_trusted_hosts(session),
+        }
+    return templates.TemplateResponse(
+        request,
+        "settings.html",
+        {"user": user, "current": current, "saved": bool(saved)},
+    )
+
+
+@app.post("/settings")
+async def update_settings(request: Request, user: User = Depends(require_login)):
+    form = await request.form()
+
+    def as_int(raw, fallback: int, lo: int, hi: int) -> int:
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            return fallback
+        return max(lo, min(hi, value))
+
+    auto_check_enabled = "true" if form.get("auto_check_enabled") == "on" else "false"
+    auto_check_interval_minutes = as_int(
+        form.get("auto_check_interval_minutes"), 360, 15, 10080
+    )
+    update_source_timeout_seconds = as_int(
+        form.get("update_source_timeout_seconds"), 30, 5, 300
+    )
+    notifications_enabled = (
+        "true" if form.get("notifications_enabled") == "on" else "false"
+    )
+    trusted_hosts_raw = str(form.get("trusted_hosts", ""))
+    hosts = [h.strip().lower() for h in trusted_hosts_raw.splitlines() if h.strip()]
+    # de-duplicate while preserving order, so repeated pastes don't grow forever
+    seen: set[str] = set()
+    deduped_hosts = [h for h in hosts if not (h in seen or seen.add(h))]
+
+    with Session(engine) as session:
+        set_setting(session, "auto_check_enabled", auto_check_enabled)
+        set_setting(
+            session, "auto_check_interval_minutes", str(auto_check_interval_minutes)
+        )
+        set_setting(
+            session, "update_source_timeout_seconds", str(update_source_timeout_seconds)
+        )
+        set_setting(session, "notifications_enabled", notifications_enabled)
+        set_setting(session, "trusted_hosts", ",".join(deduped_hosts))
+        session.commit()
+
+    return RedirectResponse("/settings?saved=1", status_code=303)
