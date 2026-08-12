@@ -12,7 +12,7 @@ bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
 
 <div class="mb-6 flex items-start justify-between">
   <div>
-    <h1 class="text-2xl font-bold text-gray-800">Welcome back, <span class="text-puma-primary">{{ user.username }}</span>!<img src="/static/img/paw-greeting.png" alt="" class="h-8 w-auto inline-block align-middle ml-2"></h1>
+    <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-100">Welcome back, <span class="text-puma-primary">{{ user.username }}</span>!<img src="/static/img/paw-greeting.png" alt="" class="h-8 w-auto inline-block align-middle ml-2"></h1>
     <p class="text-gray-400 text-sm mt-1">Here's the status of your monitored applications.</p>
   </div>
   <div class="flex items-center gap-2">
@@ -34,46 +34,46 @@ bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
 
 <!-- KPI cards -->
 <div class="grid grid-cols-4 gap-4 mb-6">
-  <div class="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-3">
+  <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 flex items-center gap-3">
     <div class="w-11 h-11 rounded-lg bg-puma-primary-light flex items-center justify-center text-puma-primary">
       {{ icon("grid", "w-5 h-5") }}
     </div>
     <div>
       <div class="text-xs text-gray-400">Total Applications</div>
-      <div class="text-2xl font-bold">{{ total }}</div>
+      <div class="text-2xl font-bold text-gray-800 dark:text-gray-100">{{ total }}</div>
       <div class="text-[11px] text-gray-400">Monitored</div>
     </div>
   </div>
 
-  <div class="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-3">
+  <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 flex items-center gap-3">
     <div class="w-11 h-11 rounded-lg bg-puma-green-bg flex items-center justify-center text-puma-green">
       {{ icon("check-circle", "w-5 h-5") }}
     </div>
     <div>
       <div class="text-xs text-gray-400">Up to Date</div>
-      <div class="text-2xl font-bold">{{ up_to_date }}</div>
+      <div class="text-2xl font-bold text-gray-800 dark:text-gray-100">{{ up_to_date }}</div>
       <div class="text-[11px] text-gray-400">Applications</div>
     </div>
   </div>
 
-  <div class="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-3">
+  <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 flex items-center gap-3">
     <div class="w-11 h-11 rounded-lg bg-puma-amber-bg flex items-center justify-center text-puma-amber">
       {{ icon("alert", "w-5 h-5") }}
     </div>
     <div>
       <div class="text-xs text-gray-400">Updates Available</div>
-      <div class="text-2xl font-bold">{{ updates_available }}</div>
+      <div class="text-2xl font-bold text-gray-800 dark:text-gray-100">{{ updates_available }}</div>
       <div class="text-[11px] text-gray-400">Applications</div>
     </div>
   </div>
 
-  <div class="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-3">
+  <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 flex items-center gap-3">
     <div class="w-11 h-11 rounded-lg bg-puma-purple-bg flex items-center justify-center text-puma-purple">
       {{ icon("clock", "w-5 h-5") }}
     </div>
     <div>
       <div class="text-xs text-gray-400">Last Check</div>
-      <div id="last-check-text" class="text-2xl font-bold"
+      <div id="last-check-text" class="text-2xl font-bold text-gray-800 dark:text-gray-100"
            data-seconds-ago="{{ last_checked | secondsago }}">{{ last_checked | timeago }}</div>
     </div>
   </div>
@@ -82,22 +82,22 @@ bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
 {% if show_apps_table %}
 {% include "_applications_table.html" %}
 {% else %}
-<div class="bg-white rounded-xl border border-gray-100 p-5 mb-6 text-sm text-gray-500">
+<div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-5 mb-6 text-sm text-gray-500 dark:text-gray-400">
   The Applications table is hidden here. <a href="/applications" class="text-puma-primary font-medium hover:underline">View all applications &rarr;</a>
 </div>
 {% endif %}
 
 <!-- Bottom row: history + settings overview -->
 <div class="grid grid-cols-2 gap-4 items-stretch">
-  <div class="bg-white rounded-xl border border-gray-100 overflow-hidden flex flex-col">
-    <div class="flex items-center gap-2 font-semibold text-puma-primary text-sm px-4 pt-3 pb-2 border-b border-gray-100">
+  <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 overflow-hidden flex flex-col">
+    <div class="flex items-center gap-2 font-semibold text-puma-primary text-sm px-4 pt-3 pb-2 border-b border-gray-100 dark:border-gray-800">
       {{ icon("clock", "w-4 h-4 text-puma-primary") }}
       Recent Check History
     </div>
     {% if recent_runs %}
     <table class="w-full text-xs">
       <thead>
-        <tr class="text-gray-800 border-b border-gray-100 bg-puma-primary-light h-10">
+        <tr class="text-gray-800 dark:text-gray-100 border-b border-gray-100 dark:border-gray-800 bg-puma-primary-light dark:bg-puma-primary/20 h-10">
           <th class="text-left font-medium px-4 align-middle">Date &amp; Time</th>
           <th class="text-left font-medium px-4 align-middle">Type</th>
           <th class="text-left font-medium px-4 align-middle">Result</th>
@@ -106,13 +106,13 @@ bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
       </thead>
       <tbody>
         {% for run in recent_runs %}
-        <tr class="border-b border-gray-100 h-10 cursor-pointer hover:bg-gray-50" onclick="window.location.href='/history#run-{{ run.id }}'">
-          <td class="px-4 align-middle text-gray-600 whitespace-nowrap">{{ run.started_at | localdatetime }}</td>
-          <td class="px-4 align-middle text-gray-400 whitespace-nowrap">{{ run.trigger.value | capitalize }} Check</td>
+        <tr class="border-b border-gray-100 dark:border-gray-800 h-10 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800" onclick="window.location.href='/history#run-{{ run.id }}'">
+          <td class="px-4 align-middle text-gray-600 dark:text-gray-300 whitespace-nowrap">{{ run.started_at | localdatetime }}</td>
+          <td class="px-4 align-middle text-gray-400 dark:text-gray-500 whitespace-nowrap">{{ run.trigger.value | capitalize }} Check</td>
           <td class="px-4 align-middle">
-            <span class="inline-block bg-puma-primary-light text-puma-primary font-medium text-xs px-2.5 py-1 rounded-full whitespace-nowrap">{{ run.apps_checked }} checked</span>
+            <span class="inline-block bg-puma-primary-light dark:bg-puma-primary/20 text-puma-primary font-medium text-xs px-2.5 py-1 rounded-full whitespace-nowrap">{{ run.apps_checked }} checked</span>
           </td>
-          <td class="px-4 align-middle text-gray-500 text-xs whitespace-nowrap">
+          <td class="px-4 align-middle text-gray-500 dark:text-gray-400 text-xs whitespace-nowrap">
             <div class="flex items-center justify-between gap-3">
               <span>
                 {%- if run.errors > 0 -%}
@@ -123,7 +123,7 @@ bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
                   All up to date
                 {%- endif -%}
               </span>
-              <span class="text-gray-300">&rsaquo;</span>
+              <span class="text-gray-300 dark:text-gray-600">&rsaquo;</span>
             </div>
           </td>
         </tr>
@@ -134,36 +134,36 @@ bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
       <a href="/history" class="text-puma-primary text-xs font-medium hover:underline">View full history &rarr;</a>
     </div>
     {% else %}
-    <p class="text-sm text-gray-400 px-4 py-3">No checks have run yet.</p>
+    <p class="text-sm text-gray-400 dark:text-gray-500 px-4 py-3">No checks have run yet.</p>
     {% endif %}
   </div>
 
-  <div class="bg-white rounded-xl border border-gray-100 overflow-hidden flex flex-col">
-    <div class="flex items-center gap-2 font-semibold text-puma-primary text-sm px-4 pt-3 pb-2 border-b border-gray-100">
+  <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 overflow-hidden flex flex-col">
+    <div class="flex items-center gap-2 font-semibold text-puma-primary text-sm px-4 pt-3 pb-2 border-b border-gray-100 dark:border-gray-800">
       {{ icon("settings", "w-4 h-4 text-puma-primary") }}
       Settings Overview
     </div>
     <div class="text-sm">
-      <div class="flex items-center justify-between px-4 h-10 border-b border-gray-100">
-        <span class="flex items-center gap-2 text-gray-500 text-xs">{{ icon("clock", "w-3.5 h-3.5 text-puma-primary") }} Auto Check</span>
-        <span class="inline-block bg-puma-primary-light text-puma-primary font-medium text-xs px-2.5 py-1 rounded-full whitespace-nowrap">
+      <div class="flex items-center justify-between px-4 h-10 border-b border-gray-100 dark:border-gray-800">
+        <span class="flex items-center gap-2 text-gray-500 dark:text-gray-400 text-xs">{{ icon("clock", "w-3.5 h-3.5 text-puma-primary") }} Auto Check</span>
+        <span class="inline-block bg-puma-primary-light dark:bg-puma-primary/20 text-puma-primary font-medium text-xs px-2.5 py-1 rounded-full whitespace-nowrap">
           {{ "Enabled" if settings_overview.auto_check_enabled == "true" else "Disabled" }}
           (Every {{ (settings_overview.auto_check_interval_minutes|int // 60) }}h)
         </span>
       </div>
-      <div class="flex items-center justify-between px-4 h-10 border-b border-gray-100">
-        <span class="flex items-center gap-2 text-gray-500 text-xs">{{ icon("clock", "w-3.5 h-3.5 text-puma-primary") }} Update Source Timeout</span>
-        <span class="inline-block bg-puma-primary-light text-puma-primary font-medium text-xs px-2.5 py-1 rounded-full whitespace-nowrap">{{ settings_overview.update_source_timeout_seconds }} seconds</span>
+      <div class="flex items-center justify-between px-4 h-10 border-b border-gray-100 dark:border-gray-800">
+        <span class="flex items-center gap-2 text-gray-500 dark:text-gray-400 text-xs">{{ icon("clock", "w-3.5 h-3.5 text-puma-primary") }} Update Source Timeout</span>
+        <span class="inline-block bg-puma-primary-light dark:bg-puma-primary/20 text-puma-primary font-medium text-xs px-2.5 py-1 rounded-full whitespace-nowrap">{{ settings_overview.update_source_timeout_seconds }} seconds</span>
       </div>
-      <div class="flex items-center justify-between px-4 h-10 border-b border-gray-100">
-        <span class="flex items-center gap-2 text-gray-500 text-xs">{{ icon("bell", "w-3.5 h-3.5 text-puma-primary") }} Notifications</span>
-        <span class="inline-block bg-puma-primary-light text-puma-primary font-medium text-xs px-2.5 py-1 rounded-full whitespace-nowrap">
+      <div class="flex items-center justify-between px-4 h-10 border-b border-gray-100 dark:border-gray-800">
+        <span class="flex items-center gap-2 text-gray-500 dark:text-gray-400 text-xs">{{ icon("bell", "w-3.5 h-3.5 text-puma-primary") }} Notifications</span>
+        <span class="inline-block bg-puma-primary-light dark:bg-puma-primary/20 text-puma-primary font-medium text-xs px-2.5 py-1 rounded-full whitespace-nowrap">
           {{ "Enabled" if settings_overview.notifications_enabled == "true" else "Disabled" }}
         </span>
       </div>
-      <div class="flex items-center justify-between px-4 h-10 border-b border-gray-100">
-        <span class="flex items-center gap-2 text-gray-500 text-xs">{{ icon("check-circle", "w-3.5 h-3.5 text-puma-primary") }} Trusted Hosts</span>
-        <span class="inline-block bg-puma-primary-light text-puma-primary font-medium text-xs px-2.5 py-1 rounded-full whitespace-nowrap">{{ settings_overview.trusted_hosts_count }} configured</span>
+      <div class="flex items-center justify-between px-4 h-10 border-b border-gray-100 dark:border-gray-800">
+        <span class="flex items-center gap-2 text-gray-500 dark:text-gray-400 text-xs">{{ icon("check-circle", "w-3.5 h-3.5 text-puma-primary") }} Trusted Hosts</span>
+        <span class="inline-block bg-puma-primary-light dark:bg-puma-primary/20 text-puma-primary font-medium text-xs px-2.5 py-1 rounded-full whitespace-nowrap">{{ settings_overview.trusted_hosts_count }} configured</span>
       </div>
     </div>
     {% if user.is_admin %}
