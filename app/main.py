@@ -457,7 +457,7 @@ def app_to_form_dict(app_row: MonitoredApp) -> dict:
 
 
 @app.get("/applications/new", response_class=HTMLResponse)
-def new_application_form(request: Request, user: User = Depends(require_login)):
+def new_application_form(request: Request, user: User = Depends(require_admin)):
     return render(
         request,
         "add_application.html",
@@ -567,7 +567,7 @@ def app_to_form_dict(app_row: MonitoredApp) -> dict:
 
 
 @app.post("/applications")
-async def create_application(request: Request, user: User = Depends(require_login)):
+async def create_application(request: Request, user: User = Depends(require_admin)):
     form = await request.form()
     fields, errors = parse_app_form(form)
 
@@ -609,7 +609,7 @@ async def create_application(request: Request, user: User = Depends(require_logi
 
 
 @app.get("/applications/{app_id}/edit", response_class=HTMLResponse)
-def edit_application_form(app_id: int, request: Request, user: User = Depends(require_login)):
+def edit_application_form(app_id: int, request: Request, user: User = Depends(require_admin)):
     with Session(engine) as session:
         app_row = session.get(MonitoredApp, app_id)
         if not app_row:
@@ -630,7 +630,7 @@ def edit_application_form(app_id: int, request: Request, user: User = Depends(re
 
 
 @app.post("/applications/{app_id}/edit")
-async def update_application(app_id: int, request: Request, user: User = Depends(require_login)):
+async def update_application(app_id: int, request: Request, user: User = Depends(require_admin)):
     form = await request.form()
     fields, errors = parse_app_form(form)
 
@@ -677,7 +677,7 @@ async def update_application(app_id: int, request: Request, user: User = Depends
 def delete_application(
     app_id: int,
     next: Optional[str] = Form(default="/"),
-    user: User = Depends(require_login),
+    user: User = Depends(require_admin),
 ):
     with Session(engine) as session:
         app_row = session.get(MonitoredApp, app_id)
@@ -848,7 +848,7 @@ def history(request: Request, page: int = 1, user: User = Depends(require_login)
 
 
 @app.get("/settings", response_class=HTMLResponse)
-def settings_page(request: Request, saved: int = 0, user: User = Depends(require_login)):
+def settings_page(request: Request, saved: int = 0, user: User = Depends(require_admin)):
     with Session(engine) as session:
         current = {
             "auto_check_enabled": get_setting(session, "auto_check_enabled", "true"),
@@ -886,7 +886,7 @@ def settings_page(request: Request, saved: int = 0, user: User = Depends(require
 
 
 @app.post("/settings")
-async def update_settings(request: Request, user: User = Depends(require_login)):
+async def update_settings(request: Request, user: User = Depends(require_admin)):
     form = await request.form()
 
     def as_int(raw, fallback: int, lo: int, hi: int) -> int:

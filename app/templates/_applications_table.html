@@ -116,6 +116,7 @@
                 {{ icon("refresh", "w-4 h-4") }}
               </button>
             </form>
+            {% if user.is_admin %}
             <div class="relative">
               <button type="button" title="More actions"
                       onclick="togglePumaMenu(event, 'menu-{{ app.id }}')"
@@ -133,13 +134,18 @@
                 </form>
               </div>
             </div>
+            {% endif %}
           </div>
         </td>
       </tr>
       {% else %}
       <tr>
         <td colspan="7" class="px-5 py-10 text-center text-gray-400 text-sm">
+          {% if user.is_admin %}
           No applications yet. Click <span class="text-puma-primary font-medium">Add Application</span> to start monitoring one.
+          {% else %}
+          No applications yet. Ask an admin to add one.
+          {% endif %}
         </td>
       </tr>
       {% endfor %}

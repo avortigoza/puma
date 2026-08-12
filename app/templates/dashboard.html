@@ -23,10 +23,12 @@ bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
         Check All Now
       </button>
     </form>
+    {% if user.is_admin %}
     <a href="/applications/new" class="flex items-center gap-2 bg-puma-primary hover:bg-puma-primary-dark text-white text-sm font-medium rounded-lg px-4 py-2.5 transition">
       {{ icon("plus", "w-4 h-4") }}
       Add Application
     </a>
+    {% endif %}
   </div>
 </div>
 
@@ -160,9 +162,11 @@ bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
         <span class="inline-block bg-puma-primary-light text-puma-primary font-medium text-xs px-2.5 py-1 rounded-full whitespace-nowrap">{{ settings_overview.trusted_hosts_count }} configured</span>
       </div>
     </div>
+    {% if user.is_admin %}
     <div class="flex items-center justify-end px-4 h-10 mt-auto">
       <a href="/settings" class="text-puma-primary text-xs font-medium hover:underline">Go to settings &rarr;</a>
     </div>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

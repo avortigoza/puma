@@ -92,10 +92,18 @@
       {% set nav_items = [
         ("home", "Dashboard", "/"),
         ("grid", "Applications", "/applications"),
-        ("plus-square", "Add Application", "/applications/new"),
+      ] %}
+      {% if user is defined and user.is_admin %}
+      {% set nav_items = nav_items + [("plus-square", "Add Application", "/applications/new")] %}
+      {% endif %}
+      {% set nav_items = nav_items + [
         ("clock", "History", "/history"),
         ("bell", "Notifications", "/notifications"),
-        ("settings", "Settings", "/settings"),
+      ] %}
+      {% if user is defined and user.is_admin %}
+      {% set nav_items = nav_items + [("settings", "Settings", "/settings")] %}
+      {% endif %}
+      {% set nav_items = nav_items + [
         ("monitor", "System Info", "/system-info"),
         ("info", "About", "/about"),
       ] %}
