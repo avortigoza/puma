@@ -140,7 +140,7 @@
       <div class="relative">
         <button type="button" onclick="togglePumaMenu(event, 'account-menu')"
                 class="flex items-center gap-2 cursor-pointer">
-          <div class="w-8 h-8 rounded-full bg-puma-primary-light flex items-center justify-center text-xs font-semibold text-puma-primary">
+          <div class="w-8 h-8 rounded-full bg-puma-primary-light border-2 border-puma-primary flex items-center justify-center text-xs font-semibold text-puma-primary">
             {{ (user.username[0] | upper) if user is defined else "?" }}
           </div>
           <span class="text-sm font-medium">{{ user.username if user is defined else "" }}</span>
