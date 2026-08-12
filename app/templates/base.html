@@ -351,16 +351,31 @@
       var toast = document.createElement('div');
       toast.className = 'bg-white dark:bg-gray-800 border rounded-lg shadow-lg px-4 py-3 text-sm flex items-start gap-2 text-gray-800 dark:text-gray-100 transition-opacity duration-300 ' +
         (isSuccess ? 'border-puma-primary' : 'border-puma-red');
+      // TEMPORARY: hardcoded inline styles, bypassing Tailwind entirely,
+      // so this cannot fail to render for CSS-compilation reasons - only
+      // to confirm visibility/positioning before restoring the normal
+      // Tailwind-based styling.
+      toast.style.cssText = 'background:#fef08a !important; border:4px solid black !important; color:#000 !important; font-size:16px !important; font-weight:bold !important; padding:16px !important; border-radius:8px !important; box-shadow:0 4px 12px rgba(0,0,0,0.4) !important;';
       var label = isSuccess
         ? 'Email sent - ' + evt.app_name + (evt.version && evt.version !== '-' ? ' ' + evt.version : '')
         : 'Email failed - ' + evt.app_name + (evt.error ? ': ' + evt.error : '');
       var dotColor = isSuccess ? 'bg-puma-primary' : 'bg-puma-red';
       toast.innerHTML = '<span class="w-2 h-2 rounded-full mt-1.5 shrink-0 ' + dotColor + '"></span><span>' + escapeText(label) + '</span>';
       container.appendChild(toast);
+      console.log('[PUMA toast] appended - container now has', container.children.length, 'children');
+      console.log('[PUMA toast] container rect:', JSON.stringify(container.getBoundingClientRect()));
+      console.log('[PUMA toast] toast rect:', JSON.stringify(toast.getBoundingClientRect()));
+      console.log('[PUMA toast] container computed style:', JSON.stringify({
+        position: getComputedStyle(container).position,
+        display: getComputedStyle(container).display,
+        zIndex: getComputedStyle(container).zIndex,
+        visibility: getComputedStyle(container).visibility,
+        opacity: getComputedStyle(container).opacity,
+      }));
       setTimeout(function () {
         toast.style.opacity = '0';
         setTimeout(function () { toast.remove(); }, 300);
-      }, 6000);
+      }, 10000);
     }
 
     function poll() {
