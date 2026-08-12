@@ -123,14 +123,20 @@
                       class="w-8 h-8 rounded-lg bg-puma-primary-light dark:bg-puma-primary/20 text-puma-primary flex items-center justify-center hover:bg-puma-primary/20 dark:hover:bg-puma-primary/40 transition-colors">
                 {{ icon("more-vertical", "w-4 h-4") }}
               </button>
-              <div id="menu-{{ app.id }}" class="puma-app-menu hidden absolute right-0 mt-1 w-32 bg-white dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700 shadow-lg z-10 py-1 text-left">
+              <div id="menu-{{ app.id }}" class="puma-app-menu hidden absolute right-0 mt-1 w-44 bg-white dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700 shadow-lg z-10 py-1 text-left">
                 <a href="/applications/{{ app.id }}/edit"
                    class="block px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">Edit</a>
+                <form method="post" action="/applications/{{ app.id }}/reset-notification"
+                      onsubmit="return confirm('Clear the notified marker for {{ app.name }}? The next check will treat its current latest version as new again and may send a fresh notification/email.');">
+                  <input type="hidden" name="next" value="{{ request.url.path }}">
+                  <button type="submit"
+                          class="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">Reset Notification</button>
+                </form>
                 <form method="post" action="/applications/{{ app.id }}/delete"
                       onsubmit="return confirm('Delete {{ app.name }}? This cannot be undone.');">
                   <input type="hidden" name="next" value="{{ request.url.path }}">
                   <button type="submit"
-                          class="w-full text-left px-3 py-2 text-sm text-puma-red hover:bg-red-50">Delete</button>
+                          class="w-full text-left px-3 py-2 text-sm text-puma-red hover:bg-red-50 dark:hover:bg-red-950">Delete</button>
                 </form>
               </div>
             </div>

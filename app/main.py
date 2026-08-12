@@ -697,6 +697,26 @@ def delete_application(
     return RedirectResponse(safe_redirect_target(next), status_code=303)
 
 
+@app.post("/applications/{app_id}/reset-notification")
+def reset_notification(
+    app_id: int,
+    next: Optional[str] = Form(default="/"),
+    user: User = Depends(require_admin),
+):
+    """Clears the 'already notified about this version' marker, so the
+    next check treats the current latest version as new again - lets an
+    admin deliberately re-trigger a notification (in-app and/or email)
+    without waiting for an actual new upstream release, useful for
+    testing the notification pipeline end to end."""
+    with Session(engine) as session:
+        app_row = session.get(MonitoredApp, app_id)
+        if app_row:
+            app_row.notified_version = None
+            session.add(app_row)
+            session.commit()
+    return RedirectResponse(safe_redirect_target(next), status_code=303)
+
+
 # --------------------------------------------------------------------------
 # Check Updates# --------------------------------------------------------------------------
 # Check Updates
