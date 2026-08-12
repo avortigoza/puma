@@ -309,6 +309,7 @@
   // no way to push to a closed browser without a completely different
   // mechanism (real desktop push notifications).
   (function () {
+    console.log('[PUMA toast] script starting');
     var POLL_MS = 15000;
     var STORAGE_KEY = 'puma-last-email-id';
     // sessionStorage (not a plain JS variable) so this survives a page
@@ -319,8 +320,22 @@
     // sent before the toast logic ever got a chance to see it. Cleared
     // on tab close (not localStorage) so reopening later doesn't dump a
     // burst of toasts for everything that piled up while it was closed.
-    var stored = sessionStorage.getItem(STORAGE_KEY);
-    var lastSeenId = stored !== null ? parseInt(stored, 10) : null;
+    var lastSeenId = null;
+    try {
+      var stored = sessionStorage.getItem(STORAGE_KEY);
+      lastSeenId = stored !== null ? parseInt(stored, 10) : null;
+      console.log('[PUMA toast] sessionStorage read OK, lastSeenId =', lastSeenId);
+    } catch (e) {
+      console.error('[PUMA toast] sessionStorage READ failed - continuing without persistence:', e);
+    }
+
+    function persistLastSeenId(id) {
+      try {
+        sessionStorage.setItem(STORAGE_KEY, String(id));
+      } catch (e) {
+        console.error('[PUMA toast] sessionStorage WRITE failed:', e);
+      }
+    }
 
     function escapeText(s) {
       var div = document.createElement('div');
@@ -330,7 +345,10 @@
 
     function showEmailToast(evt) {
       var container = document.getElementById('puma-toast-container');
-      if (!container) return;
+      if (!container) {
+        console.error('[PUMA toast] #puma-toast-container not found in the DOM');
+        return;
+      }
       var isSuccess = evt.success;
       var toast = document.createElement('div');
       toast.className = 'bg-white dark:bg-gray-800 border rounded-lg shadow-lg px-4 py-3 text-sm flex items-start gap-2 text-gray-800 dark:text-gray-100 transition-opacity duration-300 ' +
@@ -349,9 +367,14 @@
 
     function poll() {
       var url = '/api/email-events' + (lastSeenId !== null ? ('?since_id=' + lastSeenId) : '');
+      console.log('[PUMA toast] polling', url);
       fetch(url)
-        .then(function (r) { return r.json(); })
+        .then(function (r) {
+          console.log('[PUMA toast] response status', r.status);
+          return r.json();
+        })
         .then(function (data) {
+          console.log('[PUMA toast] data received', data);
           var isFirstEverPoll = lastSeenId === null;
           if (!isFirstEverPoll) {
             data.events.forEach(showEmailToast);
@@ -361,9 +384,11 @@
           // reload picks up exactly where this left off instead of
           // resetting.
           lastSeenId = data.latest_id;
-          sessionStorage.setItem(STORAGE_KEY, String(lastSeenId));
+          persistLastSeenId(lastSeenId);
         })
-        .catch(function () { /* silent - a background poll failing shouldn't be noisy */ });
+        .catch(function (err) {
+          console.error('[PUMA toast] poll FAILED:', err);
+        });
     }
 
     poll();
