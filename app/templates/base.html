@@ -46,6 +46,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="{{ cls }}"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
 {% elif name == "chevron-down" %}
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="{{ cls }}"><path d="m6 9 6 6 6-6"/></svg>
+{% elif name == "chevron-up" %}
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="{{ cls }}"><path d="m18 15-6-6-6 6"/></svg>
 {% elif name == "log-out" %}
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="{{ cls }}"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
 {% elif name == "check-circle" %}
@@ -200,6 +202,23 @@
     });
   });
 
+  // Custom pink up/down steppers for number inputs whose native browser
+  // spinner arrows can't be recolored with CSS - respects the input's
+  // own min/max/step attributes rather than hardcoding bounds here.
+  function pumaStepNumber(inputId, direction) {
+    var input = document.getElementById(inputId);
+    if (!input) return;
+    var step = parseInt(input.step, 10) || 1;
+    var min = input.min !== '' ? parseInt(input.min, 10) : -Infinity;
+    var max = input.max !== '' ? parseInt(input.max, 10) : Infinity;
+    var current = parseInt(input.value, 10);
+    if (isNaN(current)) current = min !== -Infinity ? min : 0;
+    var next = current + (direction * step);
+    if (next < min) next = min;
+    if (next > max) next = max;
+    input.value = next;
+  }
+
   // Search + status filter for the Applications table (shared partial,
   // appears on both Dashboard and the standalone Applications page).
   // Client-side only - no reload, since the whole point is fast, instant
@@ -351,31 +370,16 @@
       var toast = document.createElement('div');
       toast.className = 'bg-white dark:bg-gray-800 border rounded-lg shadow-lg px-4 py-3 text-sm flex items-start gap-2 text-gray-800 dark:text-gray-100 transition-opacity duration-300 ' +
         (isSuccess ? 'border-puma-primary' : 'border-puma-red');
-      // TEMPORARY: hardcoded inline styles, bypassing Tailwind entirely,
-      // so this cannot fail to render for CSS-compilation reasons - only
-      // to confirm visibility/positioning before restoring the normal
-      // Tailwind-based styling.
-      toast.style.cssText = 'background:#fef08a !important; border:4px solid black !important; color:#000 !important; font-size:16px !important; font-weight:bold !important; padding:16px !important; border-radius:8px !important; box-shadow:0 4px 12px rgba(0,0,0,0.4) !important;';
       var label = isSuccess
         ? 'Email sent - ' + evt.app_name + (evt.version && evt.version !== '-' ? ' ' + evt.version : '')
         : 'Email failed - ' + evt.app_name + (evt.error ? ': ' + evt.error : '');
       var dotColor = isSuccess ? 'bg-puma-primary' : 'bg-puma-red';
       toast.innerHTML = '<span class="w-2 h-2 rounded-full mt-1.5 shrink-0 ' + dotColor + '"></span><span>' + escapeText(label) + '</span>';
       container.appendChild(toast);
-      console.log('[PUMA toast] appended - container now has', container.children.length, 'children');
-      console.log('[PUMA toast] container rect:', JSON.stringify(container.getBoundingClientRect()));
-      console.log('[PUMA toast] toast rect:', JSON.stringify(toast.getBoundingClientRect()));
-      console.log('[PUMA toast] container computed style:', JSON.stringify({
-        position: getComputedStyle(container).position,
-        display: getComputedStyle(container).display,
-        zIndex: getComputedStyle(container).zIndex,
-        visibility: getComputedStyle(container).visibility,
-        opacity: getComputedStyle(container).opacity,
-      }));
       setTimeout(function () {
         toast.style.opacity = '0';
         setTimeout(function () { toast.remove(); }, 300);
-      }, 10000);
+      }, 6000);
     }
 
     function poll() {
