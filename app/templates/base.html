@@ -221,9 +221,18 @@
 
     var countEl = document.getElementById('puma-apps-count');
     if (countEl && rows.length > 0) {
+      // Total here means two different things depending on context: while
+      // actively searching/filtering, "of N" should be how many rows are
+      // even loaded to search through (rows.length) - search can't match
+      // against apps that were never rendered. With no filter active, "of
+      // N" should be the true system-wide count (data-total-apps), since
+      // the Dashboard's table can be a deliberately narrowed subset of
+      // everything actually monitored.
+      var trueTotal = parseInt(countEl.getAttribute('data-total-apps'), 10);
+      if (isNaN(trueTotal)) trueTotal = rows.length;
       countEl.textContent = (query || statusFilter)
         ? 'Showing ' + visibleCount + ' of ' + rows.length + ' applications'
-        : 'Showing 1 to ' + rows.length + ' of ' + rows.length + ' applications';
+        : 'Showing 1 to ' + rows.length + ' of ' + trueTotal + ' applications';
     }
   }
 

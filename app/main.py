@@ -778,6 +778,7 @@ def dashboard(request: Request, user: User = Depends(require_login)):
             "user": user,
             "apps": dashboard_table_apps,
             "total": total,
+            "total_apps_count": total,
             "updates_available": updates_available,
             "up_to_date": up_to_date,
             "last_checked": last_checked,

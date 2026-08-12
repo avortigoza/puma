@@ -155,9 +155,10 @@
     </tbody>
   </table>
   {% if apps %}
+  {% set true_total = total_apps_count if total_apps_count is defined else apps|length %}
   <div class="px-5 py-3 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
-    <span class="text-xs text-gray-400 dark:text-gray-500" id="puma-apps-count">
-      Showing 1 to {{ apps|length }} of {{ apps|length }} applications
+    <span class="text-xs text-gray-400 dark:text-gray-500" id="puma-apps-count" data-total-apps="{{ true_total }}">
+      Showing 1 to {{ apps|length }} of {{ true_total }} applications
     </span>
     {% if request.url.path == "/" %}
     <a href="/applications" class="text-xs text-puma-primary font-medium hover:underline">View all applications &rarr;</a>
