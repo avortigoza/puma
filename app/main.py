@@ -82,14 +82,24 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="stat
 # Small helpers
 # --------------------------------------------------------------------------
 
-def render(request: Request, template_name: str, context: dict) -> HTMLResponse:
+def render(
+    request: Request,
+    template_name: str,
+    context: dict,
+    status_code: int = 200,
+) -> HTMLResponse:
     """Wraps templates.TemplateResponse and injects context every page
     needs regardless of which route renders it - right now just
     unread_notifications for the topbar bell badge, which was previously
     only computed inside the Dashboard route and silently missing
     everywhere else. Routing every render through here means adding a
     future "every page needs this" value can't be forgotten route by
-    route the way this one was."""
+    route the way this one was.
+
+    status_code exists because Starlette's own TemplateResponse supports
+    it (e.g. returning 401 on a failed login, 400 on a rejected form) -
+    dropping it here would silently 500 on every call site that relies
+    on it, which is exactly what happened until this was caught."""
     with Session(engine) as session:
         unread = session.exec(
             select(func.count()).select_from(Notification).where(
@@ -97,7 +107,9 @@ def render(request: Request, template_name: str, context: dict) -> HTMLResponse:
             )
         ).one()
     merged = {**context, "unread_notifications": unread}
-    return templates.TemplateResponse(request, template_name, merged)
+    return templates.TemplateResponse(
+        request, template_name, merged, status_code=status_code
+    )
 
 
 def hash_password(raw: str) -> str:
