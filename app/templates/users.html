@@ -6,7 +6,7 @@
 <div class="mb-6 flex items-start justify-between">
   <div>
     <a href="/" class="text-sm text-gray-400 hover:text-puma-primary">&larr; Back to Dashboard</a>
-    <h1 class="text-2xl font-bold text-gray-800 mt-2">Users</h1>
+    <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-100 mt-2">Users</h1>
     <p class="text-gray-400 text-sm mt-1">{{ users|length }} account{{ "s" if users|length != 1 else "" }}.</p>
   </div>
   <a href="/users/new" class="flex items-center gap-2 bg-puma-primary hover:bg-puma-primary-dark text-white font-medium rounded-lg px-4 py-2 text-sm transition">
@@ -15,10 +15,10 @@
   </a>
 </div>
 
-<div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
+<div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 overflow-hidden">
   <table class="w-full text-sm">
     <thead>
-      <tr class="text-gray-800 border-b border-gray-100 bg-puma-primary-light">
+      <tr class="text-gray-800 dark:text-gray-100 border-b border-gray-100 dark:border-gray-800 bg-puma-primary-light dark:bg-puma-primary/20">
         <th class="text-left font-medium px-5 py-2.5">Username</th>
         <th class="text-left font-medium px-5 py-2.5">Role</th>
         <th class="text-left font-medium px-5 py-2.5">Created</th>
@@ -28,20 +28,20 @@
     </thead>
     <tbody>
       {% for u in users %}
-      <tr class="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
-        <td class="px-5 py-3 font-medium text-gray-800">
+      <tr class="border-b border-gray-50 dark:border-gray-800 last:border-0 hover:bg-gray-50/50 dark:hover:bg-gray-800/50">
+        <td class="px-5 py-3 font-medium text-gray-800 dark:text-gray-100">
           {{ u.username }}
-          {% if u.id == user.id %}<span class="text-xs text-gray-400 font-normal">(you)</span>{% endif %}
+          {% if u.id == user.id %}<span class="text-xs text-gray-400 dark:text-gray-500 font-normal">(you)</span>{% endif %}
         </td>
         <td class="px-5 py-3">
           {% if u.is_admin %}
-          <span class="inline-block bg-puma-primary-light text-puma-primary font-medium text-xs px-2.5 py-1 rounded-full">Admin</span>
+          <span class="inline-block bg-puma-primary-light dark:bg-puma-primary/20 text-puma-primary font-medium text-xs px-2.5 py-1 rounded-full">Admin</span>
           {% else %}
-          <span class="inline-block bg-gray-100 text-gray-600 font-medium text-xs px-2.5 py-1 rounded-full">Member</span>
+          <span class="inline-block bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 font-medium text-xs px-2.5 py-1 rounded-full">Member</span>
           {% endif %}
         </td>
-        <td class="px-5 py-3 text-xs text-gray-400">{{ u.created_at | shortdate }}</td>
-        <td class="px-5 py-3 text-xs text-gray-400">{{ u.last_login_at | timeago if u.last_login_at else "Never" }}</td>
+        <td class="px-5 py-3 text-xs text-gray-400 dark:text-gray-500">{{ u.created_at | shortdate }}</td>
+        <td class="px-5 py-3 text-xs text-gray-400 dark:text-gray-500">{{ u.last_login_at | timeago if u.last_login_at else "Never" }}</td>
         <td class="px-5 py-3 text-right">
           <div class="flex items-center justify-end gap-1.5">
             <a href="/users/{{ u.id }}/edit" title="Edit"

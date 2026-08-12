@@ -5,7 +5,7 @@
 
 <div class="max-w-2xl mx-auto mb-6">
   <a href="/" class="text-sm text-gray-400 hover:text-puma-primary">&larr; Back to Dashboard</a>
-  <h1 class="text-2xl font-bold text-gray-800 mt-2">{% if editing_app %}Edit {{ editing_app.name }}{% else %}Add Application{% endif %}</h1>
+  <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-100 mt-2">{% if editing_app %}Edit {{ editing_app.name }}{% else %}Add Application{% endif %}</h1>
   <p class="text-gray-400 text-sm mt-1">{% if editing_app %}Update this application's monitoring settings.{% else %}Register a new app to monitor for updates.{% endif %}</p>
 </div>
 
@@ -16,47 +16,47 @@
 <form method="post" action="{% if editing_app %}/applications/{{ editing_app.id }}/edit{% else %}/applications{% endif %}" class="max-w-2xl mx-auto space-y-6">
 
   <!-- App details -->
-  <div class="bg-white rounded-xl border border-gray-100 p-5 space-y-4">
-    <div class="flex items-center gap-2 font-semibold text-gray-700">{{ icon("info", "w-4 h-4 text-puma-primary") }} Application Details</div>
+  <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-5 space-y-4">
+    <div class="flex items-center gap-2 font-semibold text-gray-700 dark:text-gray-200">{{ icon("info", "w-4 h-4 text-puma-primary") }} Application Details</div>
 
     <div>
-      <label class="block text-sm font-medium text-gray-600 mb-1">Name *</label>
+      <label class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">Name *</label>
       <input type="text" name="name" required value="{{ form.get('name', '') }}"
              placeholder="e.g. VLE (Moodle)"
-             class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+             class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
     </div>
 
     <div class="grid grid-cols-2 gap-4">
       <div>
-        <label class="block text-sm font-medium text-gray-600 mb-1">Category</label>
+        <label class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">Category</label>
         <input type="text" name="category" value="{{ form.get('category', '') }}"
                placeholder="LMS, Wiki, ITSM, Git..."
-               class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+               class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
       </div>
       <div>
-        <label class="block text-sm font-medium text-gray-600 mb-1">Instance URL</label>
+        <label class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">Instance URL</label>
         <input type="url" name="instance_url" value="{{ form.get('instance_url', '') }}"
                placeholder="https://vle.pstprd.one"
-               class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+               class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
       </div>
     </div>
 
     <div>
-      <label class="block text-sm font-medium text-gray-600 mb-1">Installed Version</label>
+      <label class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">Installed Version</label>
       <input type="text" name="installed_version" value="{{ form.get('installed_version', '') }}"
              placeholder="e.g. 5.2.1 — you'll update this manually after upgrades"
-             class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+             class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
     </div>
   </div>
 
   <!-- Update source -->
-  <div class="bg-white rounded-xl border border-gray-100 p-5 space-y-4">
-    <div class="flex items-center gap-2 font-semibold text-gray-700">{{ icon("refresh", "w-4 h-4 text-puma-primary") }} Update Source</div>
+  <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-5 space-y-4">
+    <div class="flex items-center gap-2 font-semibold text-gray-700 dark:text-gray-200">{{ icon("refresh", "w-4 h-4 text-puma-primary") }} Update Source</div>
 
     <div>
-      <label class="block text-sm font-medium text-gray-600 mb-1">Source Type *</label>
+      <label class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">Source Type *</label>
       <select name="source_type" id="source_type" required
-              class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+              class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
         {% for st in source_types %}
         <option value="{{ st.key }}" {% if form.get('source_type') == st.key %}selected{% endif %}>{{ st.label }}</option>
         {% endfor %}
@@ -68,12 +68,12 @@
          data-source-type="{{ st.key }}">
       {% for field in st.fields %}
       <div>
-        <label class="block text-sm font-medium text-gray-600 mb-1">
+        <label class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">
           {{ field.label }}{% if field.required %} *{% endif %}
         </label>
         {% if field.type == "select" %}
         <select name="cfg__{{ st.key }}__{{ field.name }}"
-                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+                class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
           {% for choice in field.choices %}
           <option value="{{ choice }}" {% if form.get('cfg__' ~ st.key ~ '__' ~ field.name) == choice %}selected{% endif %}>{{ choice }}</option>
           {% endfor %}
@@ -82,15 +82,15 @@
         <input type="{{ field.type }}" name="cfg__{{ st.key }}__{{ field.name }}"
                value="{{ form.get('cfg__' ~ st.key ~ '__' ~ field.name, '') }}"
                placeholder="{{ field.placeholder }}"
-               class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+               class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
         {% endif %}
         {% if field.help %}
-        <p class="text-xs text-gray-400 mt-1">{{ field.help }}</p>
+        <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">{{ field.help }}</p>
         {% endif %}
       </div>
       {% endfor %}
       {% if st.key in ("gitlab_releases", "glpi_rest_api", "atom_feed", "json_api", "html_regex") %}
-      <p class="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
+      <p class="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 rounded-lg px-3 py-2">
         This source contacts a URL you provide, so its host must be listed under Settings &rarr; Trusted Hosts first.
       </p>
       {% endif %}
@@ -99,23 +99,23 @@
   </div>
 
   <!-- Installed version probe -->
-  <div class="bg-white rounded-xl border border-gray-100 p-5 space-y-4">
-    <div class="flex items-center gap-2 font-semibold text-gray-700">{{ icon("check-circle", "w-4 h-4 text-puma-primary") }} Installed Version</div>
-    <p class="text-xs text-gray-400 -mt-2">
+  <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-5 space-y-4">
+    <div class="flex items-center gap-2 font-semibold text-gray-700 dark:text-gray-200">{{ icon("check-circle", "w-4 h-4 text-puma-primary") }} Installed Version</div>
+    <p class="text-xs text-gray-400 dark:text-gray-500 -mt-2">
       Optional. Without a probe, type the version once below and update it manually after upgrades.
     </p>
 
     <div>
-      <label class="block text-sm font-medium text-gray-600 mb-1">Installed Version</label>
+      <label class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">Installed Version</label>
       <input type="text" name="installed_version" value="{{ form.get('installed_version', '') }}"
              placeholder="e.g. 5.2.1 — leave blank if using a probe below"
-             class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+             class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
     </div>
 
     <div>
-      <label class="block text-sm font-medium text-gray-600 mb-1">Automatic Probe</label>
+      <label class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">Automatic Probe</label>
       <select name="installed_probe" id="installed_probe"
-              class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+              class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
         <option value="" {% if not form.get('installed_probe') %}selected{% endif %}>None — manual entry only</option>
         {% for st in source_types %}
         <option value="{{ st.key }}" {% if form.get('installed_probe') == st.key %}selected{% endif %}>{{ st.label }}</option>
@@ -128,12 +128,12 @@
          data-probe-type="{{ st.key }}">
       {% for field in st.fields %}
       <div>
-        <label class="block text-sm font-medium text-gray-600 mb-1">
+        <label class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">
           {{ field.label }}{% if field.required %} *{% endif %}
         </label>
         {% if field.type == "select" %}
         <select name="probe__{{ st.key }}__{{ field.name }}"
-                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+                class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
           {% for choice in field.choices %}
           <option value="{{ choice }}" {% if form.get('probe__' ~ st.key ~ '__' ~ field.name) == choice %}selected{% endif %}>{{ choice }}</option>
           {% endfor %}
@@ -142,15 +142,15 @@
         <input type="{{ field.type }}" name="probe__{{ st.key }}__{{ field.name }}"
                value="{{ form.get('probe__' ~ st.key ~ '__' ~ field.name, '') }}"
                placeholder="{{ field.placeholder }}"
-               class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+               class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
         {% endif %}
         {% if field.help %}
-        <p class="text-xs text-gray-400 mt-1">{{ field.help }}</p>
+        <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">{{ field.help }}</p>
         {% endif %}
       </div>
       {% endfor %}
       {% if st.key in ("gitlab_releases", "glpi_rest_api", "atom_feed", "json_api", "html_regex") %}
-      <p class="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
+      <p class="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 rounded-lg px-3 py-2">
         This probe contacts a URL you provide, so its host must be listed under Settings &rarr; Trusted Hosts first.
       </p>
       {% endif %}
@@ -159,21 +159,21 @@
   </div>
 
   <!-- Advanced -->
-  <div class="bg-white rounded-xl border border-gray-100 p-5 space-y-4">
-    <div class="flex items-center gap-2 font-semibold text-gray-700">{{ icon("settings", "w-4 h-4 text-puma-primary") }} Advanced (optional)</div>
+  <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-5 space-y-4">
+    <div class="flex items-center gap-2 font-semibold text-gray-700 dark:text-gray-200">{{ icon("settings", "w-4 h-4 text-puma-primary") }} Advanced (optional)</div>
 
     <div class="grid grid-cols-2 gap-4">
       <div>
-        <label class="block text-sm font-medium text-gray-600 mb-1">Track Branch</label>
+        <label class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">Track Branch</label>
         <input type="text" name="track_branch" value="{{ form.get('track_branch', '') }}"
                placeholder="e.g. 5.2"
-               class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
-        <p class="text-xs text-gray-400 mt-1">Only report updates within this version line (e.g. 5.2.x, ignore 6.x).</p>
+               class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+        <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Only report updates within this version line (e.g. 5.2.x, ignore 6.x).</p>
       </div>
       <div>
-        <label class="block text-sm font-medium text-gray-600 mb-1">Check Interval</label>
+        <label class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">Check Interval</label>
         <select name="check_interval_minutes"
-                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+                class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
           {% for minutes, label in [(60,"Every hour"),(180,"Every 3 hours"),(360,"Every 6 hours"),(720,"Every 12 hours"),(1440,"Daily")] %}
           <option value="{{ minutes }}" {% if form.get('check_interval_minutes', '360')|int == minutes %}selected{% endif %}>{{ label }}</option>
           {% endfor %}
@@ -182,15 +182,15 @@
     </div>
 
     <div>
-      <label class="block text-sm font-medium text-gray-600 mb-1">Version Regex Override</label>
+      <label class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">Version Regex Override</label>
       <input type="text" name="version_pattern" value="{{ form.get('version_pattern', '') }}"
              placeholder="Leave blank to use the source's default"
-             class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30 font-mono">
+             class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30 font-mono">
     </div>
 
-    <label class="flex items-center gap-2 text-sm text-gray-600">
+    <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
       <input type="checkbox" name="include_prerelease" {% if form.get('include_prerelease') == 'on' %}checked{% endif %}
-             class="rounded border-gray-300 text-puma-primary focus:ring-puma-primary/30">
+             class="rounded border-gray-300 dark:border-gray-600 text-puma-primary focus:ring-puma-primary/30">
       Include pre-releases (rc, beta, alpha)
     </label>
   </div>
@@ -200,7 +200,7 @@
             class="bg-puma-primary hover:bg-puma-primary-dark text-white font-medium rounded-lg px-5 py-2.5 text-sm transition">
       {% if editing_app %}Save Changes{% else %}Add Application{% endif %}
     </button>
-    <a href="/" class="text-sm text-gray-500 hover:text-gray-700">Cancel</a>
+    <a href="/" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">Cancel</a>
   </div>
 </form>
 

@@ -5,15 +5,15 @@
 
 <div class="mb-6">
   <a href="/" class="text-sm text-gray-400 hover:text-puma-primary">&larr; Back to Dashboard</a>
-  <h1 class="text-2xl font-bold text-gray-800 mt-2">Check History</h1>
+  <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-100 mt-2">Check History</h1>
   <p class="text-gray-400 text-sm mt-1">Every update check PUMA has run, {{ total_runs }} total.</p>
 </div>
 
-<div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
+<div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 overflow-hidden">
   {% if runs %}
   <table class="w-full text-sm">
     <thead>
-      <tr class="text-gray-800 border-b border-gray-100 bg-puma-primary-light">
+      <tr class="text-gray-800 dark:text-gray-100 border-b border-gray-100 dark:border-gray-800 bg-puma-primary-light dark:bg-puma-primary/20">
         <th class="text-left font-medium px-4 py-2.5">Date &amp; Time</th>
         <th class="text-left font-medium px-4 py-2.5">Type</th>
         <th class="text-left font-medium px-4 py-2.5">Result</th>
@@ -22,13 +22,13 @@
     </thead>
     <tbody>
       {% for run in runs %}
-      <tr id="run-{{ run.id }}" class="border-b border-gray-100 cursor-pointer hover:bg-gray-50" onclick="toggleHistoryRow({{ run.id }})">
-        <td class="px-4 py-2.5 text-gray-600 whitespace-nowrap">{{ run.started_at | localdatetime }}</td>
-        <td class="px-4 py-2.5 text-gray-400 whitespace-nowrap">{{ run.trigger.value | capitalize }} Check</td>
+      <tr id="run-{{ run.id }}" class="border-b border-gray-100 dark:border-gray-800 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800" onclick="toggleHistoryRow({{ run.id }})">
+        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-300 whitespace-nowrap">{{ run.started_at | localdatetime }}</td>
+        <td class="px-4 py-2.5 text-gray-400 dark:text-gray-500 whitespace-nowrap">{{ run.trigger.value | capitalize }} Check</td>
         <td class="px-4 py-2.5">
-          <span class="inline-block bg-puma-primary-light text-puma-primary font-medium text-xs px-2.5 py-1 rounded-full whitespace-nowrap">{{ run.apps_checked }} checked</span>
+          <span class="inline-block bg-puma-primary-light dark:bg-puma-primary/20 text-puma-primary font-medium text-xs px-2.5 py-1 rounded-full whitespace-nowrap">{{ run.apps_checked }} checked</span>
         </td>
-        <td class="px-4 py-2.5 text-gray-500 text-xs whitespace-nowrap">
+        <td class="px-4 py-2.5 text-gray-500 dark:text-gray-400 text-xs whitespace-nowrap">
           <div class="flex items-center justify-between gap-3">
             <span>
               {%- if run.errors > 0 -%}
@@ -39,17 +39,17 @@
                 All up to date
               {%- endif -%}
             </span>
-            {{ icon("chevron-down", "w-3.5 h-3.5 text-gray-300 transition-transform") }}
+            {{ icon("chevron-down", "w-3.5 h-3.5 text-gray-300 dark:text-gray-600 transition-transform") }}
           </div>
         </td>
       </tr>
-      <tr id="history-detail-{{ run.id }}" class="hidden border-b border-gray-100 bg-gray-50">
+      <tr id="history-detail-{{ run.id }}" class="hidden border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
         <td colspan="4" class="px-4 py-3">
           {% set observations = obs_by_run.get(run.id, []) %}
           {% if observations %}
           <table class="w-full text-xs">
             <thead>
-              <tr class="text-gray-500">
+              <tr class="text-gray-500 dark:text-gray-400">
                 <th class="text-left font-medium py-1 pr-4">Application</th>
                 <th class="text-left font-medium py-1 pr-4">Version Found</th>
                 <th class="text-left font-medium py-1 pr-4">Status</th>
@@ -58,25 +58,25 @@
             </thead>
             <tbody>
               {% for obs in observations %}
-              <tr class="border-t border-gray-100">
-                <td class="py-1.5 pr-4 text-gray-700">{{ apps_by_id[obs.app_id].name if obs.app_id in apps_by_id else "Unknown app" }}</td>
-                <td class="py-1.5 pr-4 text-gray-600">{{ obs.version or "—" }}</td>
+              <tr class="border-t border-gray-100 dark:border-gray-700">
+                <td class="py-1.5 pr-4 text-gray-700 dark:text-gray-200">{{ apps_by_id[obs.app_id].name if obs.app_id in apps_by_id else "Unknown app" }}</td>
+                <td class="py-1.5 pr-4 text-gray-600 dark:text-gray-300">{{ obs.version or "—" }}</td>
                 <td class="py-1.5 pr-4">
                   {% if obs.status.value == "error" %}
                   <span class="inline-flex items-center gap-1 text-puma-red">{{ icon("alert", "w-3 h-3") }} Error</span>
                   {% elif obs.status.value == "not_modified" %}
-                  <span class="text-gray-400">No change</span>
+                  <span class="text-gray-400 dark:text-gray-500">No change</span>
                   {% else %}
                   <span class="inline-flex items-center gap-1 text-puma-green">{{ icon("check-circle", "w-3 h-3") }} OK{% if obs.is_new %} &middot; new version{% endif %}</span>
                   {% endif %}
                 </td>
-                <td class="py-1.5 text-gray-400">{{ obs.error or "" }}</td>
+                <td class="py-1.5 text-gray-400 dark:text-gray-500">{{ obs.error or "" }}</td>
               </tr>
               {% endfor %}
             </tbody>
           </table>
           {% else %}
-          <p class="text-xs text-gray-400">No per-app data recorded for this run.</p>
+          <p class="text-xs text-gray-400 dark:text-gray-500">No per-app data recorded for this run.</p>
           {% endif %}
         </td>
       </tr>
@@ -85,25 +85,25 @@
   </table>
 
   {% if total_pages > 1 %}
-  <div class="flex items-center justify-between px-4 py-3 border-t border-gray-100 text-sm">
-    <span class="text-gray-400">Page {{ page }} of {{ total_pages }}</span>
+  <div class="flex items-center justify-between px-4 py-3 border-t border-gray-100 dark:border-gray-800 text-sm">
+    <span class="text-gray-400 dark:text-gray-500">Page {{ page }} of {{ total_pages }}</span>
     <div class="flex items-center gap-2">
       {% if page > 1 %}
-      <a href="/history?page={{ page - 1 }}" class="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">Previous</a>
+      <a href="/history?page={{ page - 1 }}" class="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">Previous</a>
       {% else %}
-      <span class="px-3 py-1.5 rounded-lg border border-gray-100 text-gray-300">Previous</span>
+      <span class="px-3 py-1.5 rounded-lg border border-gray-100 dark:border-gray-800 text-gray-300 dark:text-gray-600">Previous</span>
       {% endif %}
       {% if page < total_pages %}
-      <a href="/history?page={{ page + 1 }}" class="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">Next</a>
+      <a href="/history?page={{ page + 1 }}" class="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">Next</a>
       {% else %}
-      <span class="px-3 py-1.5 rounded-lg border border-gray-100 text-gray-300">Next</span>
+      <span class="px-3 py-1.5 rounded-lg border border-gray-100 dark:border-gray-800 text-gray-300 dark:text-gray-600">Next</span>
       {% endif %}
     </div>
   </div>
   {% endif %}
 
   {% else %}
-  <p class="text-sm text-gray-400 px-4 py-6">No checks have run yet.</p>
+  <p class="text-sm text-gray-400 dark:text-gray-500 px-4 py-6">No checks have run yet.</p>
   {% endif %}
 </div>
 
