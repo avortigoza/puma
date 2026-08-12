@@ -8,6 +8,7 @@ for a whole batch and rolls the results into a CheckRun for history.
 
 from __future__ import annotations
 
+import logging
 import time
 from datetime import datetime, timezone
 from typing import Optional
@@ -27,6 +28,9 @@ from models import (
     ReleaseObservation,
     Setting,
 )
+
+
+logger = logging.getLogger("puma.checker")
 
 
 def _notifications_enabled(session: Session) -> bool:
@@ -233,13 +237,27 @@ def run_check(
                     # Best-effort: a failed send shouldn't crash the check
                     # or block notified_version from advancing - retrying
                     # forever on a broken SMTP config isn't useful either.
-                    send_email(
+                    # But it must be logged either way, or a silent SMTP
+                    # failure looks identical to "nothing to report" from
+                    # the outside - there'd be no way to notice delivery
+                    # had actually broken.
+                    email_success, email_error = send_email(
                         email_recipients,
                         f"PUMA: {app_row.name} has a new release available",
                         f"{app_row.name} has a new release available: {obs.version}\n\n"
                         f"Currently installed: {app_row.installed_version}\n"
                         f"Instance: {app_row.instance_url or 'N/A'}",
                     )
+                    if email_success:
+                        logger.info(
+                            "Email notification sent for %s %s to %s",
+                            app_row.name, obs.version, ", ".join(email_recipients),
+                        )
+                    else:
+                        logger.warning(
+                            "Email notification FAILED for %s %s to %s: %s",
+                            app_row.name, obs.version, ", ".join(email_recipients), email_error,
+                        )
                 app_row.notified_version = obs.version
 
             session.add(obs)
