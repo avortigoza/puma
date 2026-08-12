@@ -1103,6 +1103,20 @@ def about_page(request: Request, user: User = Depends(require_login)):
     return render(request, "about.html", {"user": user, "puma_version": "v1.0.0"})
 
 
+@app.post("/account/toggle-dark-mode")
+def toggle_dark_mode(
+    next: Optional[str] = Form(default="/"),
+    user: User = Depends(require_login),
+):
+    with Session(engine) as session:
+        row = session.get(User, user.id)
+        row.dark_mode = not row.dark_mode
+        session.add(row)
+        session.commit()
+    safe_next = next if next and next.startswith("/") and not next.startswith("//") else "/"
+    return RedirectResponse(safe_next, status_code=303)
+
+
 @app.get("/users", response_class=HTMLResponse)
 def users_page(request: Request, user: User = Depends(require_admin)):
     with Session(engine) as session:

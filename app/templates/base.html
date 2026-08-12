@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="{{ 'dark' if user is defined and user.dark_mode else '' }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,7 +7,7 @@
   <link rel="icon" type="image/png" href="/static/img/favicon.png">
   <link rel="stylesheet" href="/static/css/output.css">
 </head>
-<body class="bg-puma-bg text-gray-800 antialiased">
+<body class="bg-puma-bg dark:bg-gray-950 text-gray-800 dark:text-gray-100 antialiased">
 
 {% macro icon(name, cls="w-5 h-5") -%}
 {% if name == "home" %}
@@ -36,6 +36,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="{{ cls }}"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
 {% elif name == "user" %}
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="{{ cls }}"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>
+{% elif name == "moon" %}
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="{{ cls }}"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z"/></svg>
+{% elif name == "sun" %}
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="{{ cls }}"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M3 12h2M19 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>
 {% elif name == "search" %}
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="{{ cls }}"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
 {% elif name == "chevron-down" %}
@@ -77,7 +81,7 @@
 
 <div class="flex min-h-screen">
   <!-- Sidebar -->
-  <aside class="w-60 shrink-0 bg-puma-sidebar-bg border-r border-gray-100 flex flex-col sticky top-0 h-screen overflow-y-auto">
+  <aside class="w-60 shrink-0 bg-puma-sidebar-bg dark:bg-gray-900 border-r border-gray-100 dark:border-gray-800 flex flex-col sticky top-0 h-screen overflow-y-auto">
     <div class="px-5 py-6 flex items-center gap-3">
       <div class="w-14 h-14 rounded-lg bg-puma-primary/10 flex items-center justify-center overflow-hidden shrink-0">
         <img src="/static/img/logo-badge.png" alt="PUMA" class="w-full h-full object-contain">
@@ -111,27 +115,38 @@
       {% set active = href != "#" and request is defined and request.url.path == href %}
       <a href="{{ href }}"
          class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition
-                {% if active %}bg-puma-primary-light text-puma-primary border-l-2 border-puma-primary
-                {% else %}text-gray-500 hover:bg-gray-50{% endif %}">
+                {% if active %}bg-puma-primary-light dark:bg-puma-primary/20 text-puma-primary border-l-2 border-puma-primary
+                {% else %}text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800{% endif %}">
         {{ icon(icon_name, "w-4 h-4") }}
         {{ label }}
       </a>
       {% endfor %}
     </nav>
 
-    <div class="m-4 rounded-xl bg-puma-primary-light p-4 text-center">
+    <div class="m-4 rounded-xl bg-puma-primary-light dark:bg-gray-800 p-4 text-center">
       <img src="/static/img/logo-footer.png" alt="PUMA" class="w-[88px] h-16 mx-auto mb-1 object-contain">
       <div class="font-extrabold text-puma-primary text-sm">PUMA</div>
-      <div class="text-xs text-gray-500 mt-1">Stay current. Stay secure.</div>
-      <div class="text-[10px] text-gray-400 mt-2">v1.0.0</div>
+      <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">Stay current. Stay secure.</div>
+      <div class="text-[10px] text-gray-400 dark:text-gray-500 mt-2">v1.0.0</div>
     </div>
   </aside>
 
   <!-- Main -->
   <div class="flex-1 flex flex-col min-w-0">
     <!-- Topbar -->
-    <header class="h-16 bg-white border-b border-gray-100 flex items-center justify-end gap-6 px-6">
-      <a href="/notifications" class="relative text-gray-400 hover:text-gray-600">
+    <header class="h-16 bg-white dark:bg-gray-900 dark:border-gray-800 border-b border-gray-100 flex items-center justify-end gap-6 px-6">
+      <form method="post" action="/account/toggle-dark-mode">
+        <input type="hidden" name="next" value="{{ request.url.path if request is defined else '/' }}">
+        <button type="submit" title="{{ 'Switch to light mode' if user is defined and user.dark_mode else 'Switch to dark mode' }}"
+                class="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300">
+          {% if user is defined and user.dark_mode %}
+          {{ icon("sun", "w-5 h-5") }}
+          {% else %}
+          {{ icon("moon", "w-5 h-5") }}
+          {% endif %}
+        </button>
+      </form>
+      <a href="/notifications" class="relative text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300">
         {{ icon("bell", "w-5 h-5") }}
         {% if unread_notifications is defined and unread_notifications > 0 %}
         <span class="absolute -top-1.5 -right-1.5 bg-puma-primary text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center">{{ unread_notifications }}</span>
@@ -146,20 +161,20 @@
           <span class="text-sm font-medium">{{ user.username if user is defined else "" }}</span>
           {{ icon("chevron-down", "w-4 h-4 text-gray-400") }}
         </button>
-        <div id="account-menu" class="puma-app-menu hidden absolute right-0 mt-2 w-44 bg-white rounded-lg border border-gray-100 shadow-lg z-20 py-1 text-left">
+        <div id="account-menu" class="puma-app-menu hidden absolute right-0 mt-2 w-44 bg-white dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700 shadow-lg z-20 py-1 text-left">
           {% if user is defined and user.is_admin %}
-          <a href="/users" class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+          <a href="/users" class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
             {{ icon("user", "w-4 h-4 text-gray-400") }} Manage Users
           </a>
           {% endif %}
-          <a href="/logout" class="flex items-center gap-2 px-3 py-2 text-sm text-puma-red hover:bg-red-50">
+          <a href="/logout" class="flex items-center gap-2 px-3 py-2 text-sm text-puma-red hover:bg-red-50 dark:hover:bg-red-950">
             {{ icon("log-out", "w-4 h-4") }} Log out
           </a>
         </div>
       </div>
     </header>
 
-    <main class="flex-1 p-6 overflow-auto">
+    <main class="flex-1 p-6 overflow-auto bg-puma-bg dark:bg-gray-950">
       {% block content %}{% endblock %}
     </main>
   </div>

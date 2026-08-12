@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* Class-based dark mode: driven by the user's stored preference (applied
+   as class="dark" on <html> server-side), not the OS/browser's
+   prefers-color-scheme - so it's an explicit per-account choice, not
+   automatic. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* PUMA palette - tuned to the mockup: hot-pink/rose primary, soft pink
    sidebar highlight, green/amber/purple KPI accents. */
 @theme {

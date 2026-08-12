@@ -43,6 +43,7 @@ class User(SQLModel, table=True):
     username: str = Field(index=True, unique=True)
     password_hash: str
     is_admin: bool = True
+    dark_mode: bool = False  # personal preference, not a system-wide setting
     created_at: datetime = Field(default_factory=_now)
     last_login_at: Optional[datetime] = None
 
