@@ -18,7 +18,7 @@ bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
   <div class="flex items-center gap-2">
     <form method="post" action="/check-updates">
       <button type="submit"
-              class="flex items-center gap-2 bg-puma-primary-light hover:bg-puma-primary/20 border border-puma-primary text-puma-primary text-sm font-medium rounded-lg px-4 py-2.5 transition">
+              class="flex items-center gap-2 bg-puma-primary-light dark:bg-puma-primary/20 hover:bg-puma-primary/20 dark:hover:bg-puma-primary/30 border border-puma-primary text-puma-primary text-sm font-medium rounded-lg px-4 py-2.5 transition">
         {{ icon("refresh", "w-4 h-4") }}
         Check All Now
       </button>
@@ -35,7 +35,7 @@ bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
 <!-- KPI cards -->
 <div class="grid grid-cols-4 gap-4 mb-6">
   <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 flex items-center gap-3">
-    <div class="w-11 h-11 rounded-lg bg-puma-primary-light flex items-center justify-center text-puma-primary">
+    <div class="w-11 h-11 rounded-lg bg-puma-primary-light dark:bg-puma-primary/20 flex items-center justify-center text-puma-primary">
       {{ icon("grid", "w-5 h-5") }}
     </div>
     <div>
@@ -46,7 +46,7 @@ bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
   </div>
 
   <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 flex items-center gap-3">
-    <div class="w-11 h-11 rounded-lg bg-puma-green-bg flex items-center justify-center text-puma-green">
+    <div class="w-11 h-11 rounded-lg bg-puma-green-bg dark:bg-puma-green/20 flex items-center justify-center text-puma-green">
       {{ icon("check-circle", "w-5 h-5") }}
     </div>
     <div>
@@ -57,7 +57,7 @@ bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
   </div>
 
   <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 flex items-center gap-3">
-    <div class="w-11 h-11 rounded-lg bg-puma-amber-bg flex items-center justify-center text-puma-amber">
+    <div class="w-11 h-11 rounded-lg bg-puma-amber-bg dark:bg-puma-amber/20 flex items-center justify-center text-puma-amber">
       {{ icon("alert", "w-5 h-5") }}
     </div>
     <div>
@@ -68,7 +68,7 @@ bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
   </div>
 
   <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 flex items-center gap-3">
-    <div class="w-11 h-11 rounded-lg bg-puma-purple-bg flex items-center justify-center text-puma-purple">
+    <div class="w-11 h-11 rounded-lg bg-puma-purple-bg dark:bg-puma-purple/20 flex items-center justify-center text-puma-purple">
       {{ icon("clock", "w-5 h-5") }}
     </div>
     <div>
