@@ -310,7 +310,17 @@
   // mechanism (real desktop push notifications).
   (function () {
     var POLL_MS = 15000;
-    var lastSeenId = null;
+    var STORAGE_KEY = 'puma-last-email-id';
+    // sessionStorage (not a plain JS variable) so this survives a page
+    // reload within the same tab - important because actions like "Send
+    // Test Email" submit a form and immediately redirect. Without this,
+    // every fresh page load would reset the baseline to "whatever just
+    // happened," silently swallowing the exact email that action just
+    // sent before the toast logic ever got a chance to see it. Cleared
+    // on tab close (not localStorage) so reopening later doesn't dump a
+    // burst of toasts for everything that piled up while it was closed.
+    var stored = sessionStorage.getItem(STORAGE_KEY);
+    var lastSeenId = stored !== null ? parseInt(stored, 10) : null;
 
     function escapeText(s) {
       var div = document.createElement('div');
@@ -342,15 +352,16 @@
       fetch(url)
         .then(function (r) { return r.json(); })
         .then(function (data) {
-          if (lastSeenId === null) {
-            // First poll after this page loaded - just establish the
-            // baseline, don't toast for anything that happened before
-            // this tab was open to see it.
-            lastSeenId = data.latest_id;
-            return;
+          var isFirstEverPoll = lastSeenId === null;
+          if (!isFirstEverPoll) {
+            data.events.forEach(showEmailToast);
           }
-          data.events.forEach(showEmailToast);
+          // Either way (first-ever silent baseline, or a real poll with
+          // events already shown), persist the new high-water mark so a
+          // reload picks up exactly where this left off instead of
+          // resetting.
           lastSeenId = data.latest_id;
+          sessionStorage.setItem(STORAGE_KEY, String(lastSeenId));
         })
         .catch(function () { /* silent - a background poll failing shouldn't be noisy */ });
     }
