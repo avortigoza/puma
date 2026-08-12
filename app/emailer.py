@@ -8,6 +8,7 @@ from __future__ import annotations
 import os
 import smtplib
 from email.mime.text import MIMEText
+from email.utils import formataddr
 from typing import Optional
 
 SMTP_HOST = os.environ.get("PUMA_SMTP_HOST")
@@ -15,6 +16,7 @@ SMTP_PORT = int(os.environ.get("PUMA_SMTP_PORT", "587"))
 SMTP_USERNAME = os.environ.get("PUMA_SMTP_USERNAME")
 SMTP_PASSWORD = os.environ.get("PUMA_SMTP_PASSWORD")
 SMTP_FROM_ADDRESS = os.environ.get("PUMA_SMTP_FROM_ADDRESS", SMTP_USERNAME)
+SMTP_FROM_NAME = os.environ.get("PUMA_SMTP_FROM_NAME", "PUMA Notifications")
 SMTP_USE_STARTTLS = os.environ.get("PUMA_SMTP_USE_STARTTLS", "true").lower() == "true"
 SMTP_CONFIGURED = bool(SMTP_HOST and SMTP_USERNAME and SMTP_PASSWORD)
 
@@ -31,7 +33,7 @@ def send_email(to_addresses: list[str], subject: str, body: str) -> tuple[bool, 
 
     msg = MIMEText(body)
     msg["Subject"] = subject
-    msg["From"] = SMTP_FROM_ADDRESS
+    msg["From"] = formataddr((SMTP_FROM_NAME, SMTP_FROM_ADDRESS))
     msg["To"] = ", ".join(to_addresses)
 
     try:
