@@ -7,6 +7,8 @@ Run (from inside app/, after activating the venv):
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import os
 import platform
 import re
@@ -83,6 +85,63 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="stat
 # --------------------------------------------------------------------------
 # Small helpers
 # --------------------------------------------------------------------------
+
+scheduler_logger = logging.getLogger("puma.scheduler")
+
+
+def _scheduled_check_due(
+    last_full_check: Optional[datetime], interval_minutes: int, now: datetime
+) -> bool:
+    """Pure decision logic, kept separate from the loop/DB/asyncio plumbing
+    so it can be tested directly without needing to run an actual
+    background task. Deliberately looks at the last FULL check regardless
+    of whether it was triggered manually or by this same scheduler - a
+    manual Check All Now legitimately resets the clock too, no reason to
+    run again five minutes later just because the scheduler doesn't know
+    a human already did it."""
+    if last_full_check is None:
+        return True  # never checked at all - due immediately
+    if last_full_check.tzinfo is None:
+        last_full_check = last_full_check.replace(tzinfo=timezone.utc)
+    elapsed_minutes = (now - last_full_check).total_seconds() / 60
+    return elapsed_minutes >= interval_minutes
+
+
+async def scheduled_check_loop() -> None:
+    """Runs for the lifetime of the process, checking once a minute
+    whether a scheduled sweep is due. There was previously no scheduler
+    at all despite the Auto Check toggle and interval setting existing in
+    Settings - they were saved to the database but nothing ever read them
+    to actually trigger anything."""
+    while True:
+        await asyncio.sleep(60)
+        try:
+            with Session(engine) as session:
+                enabled = get_setting(session, "auto_check_enabled", "true") == "true"
+                if not enabled:
+                    continue
+                interval_raw = get_setting(session, "auto_check_interval_minutes", "360")
+                interval_minutes = int(interval_raw) if interval_raw.isdigit() else 360
+
+                last_full_run = session.exec(
+                    select(CheckRun)
+                    .where(CheckRun.is_full_check == True)  # noqa: E712
+                    .order_by(CheckRun.started_at.desc())
+                    .limit(1)
+                ).first()
+                last_full_check = last_full_run.started_at if last_full_run else None
+
+                if _scheduled_check_due(last_full_check, interval_minutes, datetime.now(timezone.utc)):
+                    scheduler_logger.info(
+                        "Scheduled check due (interval=%s min, last=%s) - running now",
+                        interval_minutes, last_full_check,
+                    )
+                    checker.run_check(session, CheckTrigger.scheduled)
+        except Exception:
+            # A single bad iteration must never kill the loop for the rest
+            # of the process's life - that would silently turn Auto Check
+            # back off with no way to notice short of restarting the app.
+            scheduler_logger.exception("Scheduled check loop iteration failed")
 
 
 def render(
@@ -305,8 +364,9 @@ def require_admin(user: User = Depends(require_login)) -> User:
 # --------------------------------------------------------------------------
 
 @app.on_event("startup")
-def on_startup() -> None:
+async def on_startup() -> None:
     SQLModel.metadata.create_all(engine)
+    asyncio.create_task(scheduled_check_loop())
 
 
 # --------------------------------------------------------------------------
