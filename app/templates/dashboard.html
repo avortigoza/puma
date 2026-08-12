@@ -81,6 +81,10 @@ bg-puma-primary bg-purple-500 bg-blue-500 bg-amber-500 bg-slate-600
 
 {% if show_apps_table %}
 {% include "_applications_table.html" %}
+{% else %}
+<div class="bg-white rounded-xl border border-gray-100 p-5 mb-6 text-sm text-gray-500">
+  The Applications table is hidden here. <a href="/applications" class="text-puma-primary font-medium hover:underline">View all applications &rarr;</a>
+</div>
 {% endif %}
 
 <!-- Bottom row: history + settings overview -->

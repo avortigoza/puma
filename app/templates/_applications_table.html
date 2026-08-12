@@ -155,8 +155,13 @@
     </tbody>
   </table>
   {% if apps %}
-  <div class="px-5 py-3 text-xs text-gray-400 border-t border-gray-100" id="puma-apps-count">
-    Showing 1 to {{ apps|length }} of {{ apps|length }} applications
+  <div class="px-5 py-3 border-t border-gray-100 flex items-center justify-between">
+    <span class="text-xs text-gray-400" id="puma-apps-count">
+      Showing 1 to {{ apps|length }} of {{ apps|length }} applications
+    </span>
+    {% if request.url.path == "/" %}
+    <a href="/applications" class="text-xs text-puma-primary font-medium hover:underline">View all applications &rarr;</a>
+    {% endif %}
   </div>
   {% endif %}
 </div>
