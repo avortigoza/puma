@@ -36,12 +36,17 @@
     {{ toggle("auto_check_enabled", current.auto_check_enabled == "true", "Automatically check all applications on a schedule") }}
     <div>
       <label class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">Check Interval</label>
-      <select name="auto_check_interval_minutes"
-              class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
-        {% for minutes, label in [(60,"Every hour"),(180,"Every 3 hours"),(360,"Every 6 hours"),(720,"Every 12 hours"),(1440,"Daily")] %}
-        <option value="{{ minutes }}" {% if current.auto_check_interval_minutes|int == minutes %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
+      <div class="relative">
+        <select name="auto_check_interval_minutes"
+                class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30 appearance-none">
+          {% for minutes, label in [(60,"Every hour"),(180,"Every 3 hours"),(360,"Every 6 hours"),(720,"Every 12 hours"),(1440,"Daily")] %}
+          <option value="{{ minutes }}" {% if current.auto_check_interval_minutes|int == minutes %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <div class="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-puma-primary">
+          {{ icon("chevron-down", "w-4 h-4") }}
+        </div>
+      </div>
       <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">How often the scheduled sweep runs across every enabled application.</p>
     </div>
   </div>
