@@ -37,6 +37,7 @@ from emailer import SMTP_CONFIGURED, send_email
 from models import (
     CheckRun,
     CheckTrigger,
+    EmailLog,
     MonitoredApp,
     Notification,
     ReleaseObservation,
@@ -1009,6 +1010,15 @@ async def send_test_email(request: Request, user: User = Depends(require_admin))
         "This is a test email from PUMA to confirm your SMTP settings are working correctly.\n\n"
         "If you're reading this, notifications are set up correctly.",
     )
+    with Session(engine) as session:
+        session.add(EmailLog(
+            app_id=None,
+            app_name="Test email",
+            version="-",
+            success=success,
+            error=None if success else error,
+        ))
+        session.commit()
     if success:
         return RedirectResponse("/settings?test_email=sent", status_code=303)
     else:
@@ -1020,6 +1030,34 @@ async def send_test_email(request: Request, user: User = Depends(require_admin))
 
 
 NOTIFICATIONS_PAGE_SIZE = 20
+
+
+@app.get("/api/email-events")
+def email_events(since_id: int = 0, user: User = Depends(require_login)):
+    """Polled by every page (see base.html) to drive the live email-sent
+    toast. Returns anything newer than since_id, oldest first, plus the
+    highest id seen so the client knows what to ask for next time."""
+    with Session(engine) as session:
+        rows = session.exec(
+            select(EmailLog)
+            .where(EmailLog.id > since_id)
+            .order_by(EmailLog.id.asc())
+            .limit(20)
+        ).all()
+    latest_id = rows[-1].id if rows else since_id
+    return {
+        "latest_id": latest_id,
+        "events": [
+            {
+                "id": r.id,
+                "app_name": r.app_name,
+                "version": r.version,
+                "success": r.success,
+                "error": r.error,
+            }
+            for r in rows
+        ],
+    }
 
 
 @app.get("/notifications", response_class=HTMLResponse)

@@ -23,6 +23,7 @@ from models import (
     CheckRun,
     CheckStatus,
     CheckTrigger,
+    EmailLog,
     MonitoredApp,
     Notification,
     ReleaseObservation,
@@ -268,6 +269,13 @@ def run_check(
                             "Email notification FAILED for %s %s to %s: %s",
                             app_row.name, app_row.latest_version, ", ".join(email_recipients), email_error,
                         )
+                    session.add(EmailLog(
+                        app_id=app_row.id,
+                        app_name=app_row.name,
+                        version=app_row.latest_version,
+                        success=email_success,
+                        error=None if email_success else email_error,
+                    ))
                 app_row.notified_version = app_row.latest_version
 
             session.add(obs)

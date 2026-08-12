@@ -182,6 +182,8 @@
   </div>
 </div>
 
+<div id="puma-toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm"></div>
+
 <script>
   // Shared across every page - the per-app "more actions" dropdown menu
   // (used wherever the applications table appears: Dashboard, Applications)
@@ -299,6 +301,62 @@
     }
 
     setInterval(tickAll, TICK_MS);
+  })();
+
+  // Live toast whenever an email actually goes out - including from
+  // background/scheduled checks, not just something this tab triggered.
+  // Only works while a PUMA tab is actually open to poll from; there's
+  // no way to push to a closed browser without a completely different
+  // mechanism (real desktop push notifications).
+  (function () {
+    var POLL_MS = 15000;
+    var lastSeenId = null;
+
+    function escapeText(s) {
+      var div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+
+    function showEmailToast(evt) {
+      var container = document.getElementById('puma-toast-container');
+      if (!container) return;
+      var isSuccess = evt.success;
+      var toast = document.createElement('div');
+      toast.className = 'bg-white dark:bg-gray-800 border rounded-lg shadow-lg px-4 py-3 text-sm flex items-start gap-2 text-gray-800 dark:text-gray-100 transition-opacity duration-300 ' +
+        (isSuccess ? 'border-puma-primary' : 'border-puma-red');
+      var label = isSuccess
+        ? 'Email sent - ' + evt.app_name + (evt.version && evt.version !== '-' ? ' ' + evt.version : '')
+        : 'Email failed - ' + evt.app_name + (evt.error ? ': ' + evt.error : '');
+      var dotColor = isSuccess ? 'bg-puma-primary' : 'bg-puma-red';
+      toast.innerHTML = '<span class="w-2 h-2 rounded-full mt-1.5 shrink-0 ' + dotColor + '"></span><span>' + escapeText(label) + '</span>';
+      container.appendChild(toast);
+      setTimeout(function () {
+        toast.style.opacity = '0';
+        setTimeout(function () { toast.remove(); }, 300);
+      }, 6000);
+    }
+
+    function poll() {
+      var url = '/api/email-events' + (lastSeenId !== null ? ('?since_id=' + lastSeenId) : '');
+      fetch(url)
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (lastSeenId === null) {
+            // First poll after this page loaded - just establish the
+            // baseline, don't toast for anything that happened before
+            // this tab was open to see it.
+            lastSeenId = data.latest_id;
+            return;
+          }
+          data.events.forEach(showEmailToast);
+          lastSeenId = data.latest_id;
+        })
+        .catch(function () { /* silent - a background poll failing shouldn't be noisy */ });
+    }
+
+    poll();
+    setInterval(poll, POLL_MS);
   })();
 </script>
 {% block scripts %}{% endblock %}

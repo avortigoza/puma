@@ -191,6 +191,22 @@ class NotificationChannel(SQLModel, table=True):
     created_at: datetime = Field(default_factory=_now)
 
 
+class EmailLog(SQLModel, table=True):
+    """One row per actual email send attempt (success or failure) - the
+    audit trail behind the live toast, and a real answer to 'how do I
+    know an email went out' beyond grepping journalctl."""
+
+    __tablename__ = "email_log"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    app_id: Optional[int] = Field(default=None, foreign_key="monitored_app.id")
+    app_name: str  # snapshot at send time - survives even if the app is later deleted
+    version: str
+    success: bool
+    error: Optional[str] = None
+    sent_at: datetime = Field(default_factory=_now, index=True)
+
+
 # ---------------------------------------------------------------------------
 # Settings (mockup's "Settings Overview" panel: Auto Check, Timeout,
 # Notifications, Trusted Hosts)
