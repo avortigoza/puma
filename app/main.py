@@ -33,6 +33,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 import adapters
 import checker
+from emailer import SMTP_CONFIGURED, send_email
 from models import (
     CheckRun,
     CheckTrigger,
@@ -81,6 +82,7 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="stat
 # --------------------------------------------------------------------------
 # Small helpers
 # --------------------------------------------------------------------------
+
 
 def render(
     request: Request,
@@ -849,7 +851,13 @@ def history(request: Request, page: int = 1, user: User = Depends(require_login)
 
 
 @app.get("/settings", response_class=HTMLResponse)
-def settings_page(request: Request, saved: int = 0, user: User = Depends(require_admin)):
+def settings_page(
+    request: Request,
+    saved: int = 0,
+    test_email: Optional[str] = None,
+    test_email_error: Optional[str] = None,
+    user: User = Depends(require_admin),
+):
     with Session(engine) as session:
         current = {
             "auto_check_enabled": get_setting(session, "auto_check_enabled", "true"),
@@ -861,6 +869,12 @@ def settings_page(request: Request, saved: int = 0, user: User = Depends(require
             ),
             "notifications_enabled": get_setting(
                 session, "notifications_enabled", "true"
+            ),
+            "email_notifications_enabled": get_setting(
+                session, "email_notifications_enabled", "false"
+            ),
+            "notification_email_recipients": get_setting(
+                session, "notification_email_recipients", ""
             ),
             "trusted_hosts": get_trusted_hosts(session),
             "dashboard_show_applications_table": get_setting(
@@ -882,6 +896,9 @@ def settings_page(request: Request, saved: int = 0, user: User = Depends(require
             # checkbox is checked whenever its app ID is NOT in the
             # hidden set.
             "dashboard_visible_ids": {a.id for a in all_apps} - hidden_ids,
+            "smtp_configured": SMTP_CONFIGURED,
+            "test_email": test_email,
+            "test_email_error": test_email_error,
         },
     )
 
@@ -907,6 +924,11 @@ async def update_settings(request: Request, user: User = Depends(require_admin))
     notifications_enabled = (
         "true" if form.get("notifications_enabled") == "on" else "false"
     )
+    email_notifications_enabled = (
+        "true" if form.get("email_notifications_enabled") == "on" else "false"
+    )
+    recipients_raw = str(form.get("notification_email_recipients", ""))
+    recipients = [r.strip() for r in recipients_raw.split(",") if r.strip()]
     dashboard_show_applications_table = (
         "true" if form.get("dashboard_show_applications_table") == "on" else "false"
     )
@@ -933,6 +955,8 @@ async def update_settings(request: Request, user: User = Depends(require_admin))
             session, "update_source_timeout_seconds", str(update_source_timeout_seconds)
         )
         set_setting(session, "notifications_enabled", notifications_enabled)
+        set_setting(session, "email_notifications_enabled", email_notifications_enabled)
+        set_setting(session, "notification_email_recipients", ",".join(recipients))
         set_setting(session, "trusted_hosts", ",".join(deduped_hosts))
         set_setting(
             session,
@@ -951,6 +975,28 @@ async def update_settings(request: Request, user: User = Depends(require_admin))
         session.commit()
 
     return RedirectResponse("/settings?saved=1", status_code=303)
+
+
+@app.post("/settings/send-test-email")
+async def send_test_email(request: Request, user: User = Depends(require_admin)):
+    form = await request.form()
+    recipients_raw = str(form.get("notification_email_recipients", ""))
+    recipients = [r.strip() for r in recipients_raw.split(",") if r.strip()]
+
+    success, error = send_email(
+        recipients,
+        "PUMA test email",
+        "This is a test email from PUMA to confirm your SMTP settings are working correctly.\n\n"
+        "If you're reading this, notifications are set up correctly.",
+    )
+    if success:
+        return RedirectResponse("/settings?test_email=sent", status_code=303)
+    else:
+        from urllib.parse import quote
+        return RedirectResponse(
+            f"/settings?test_email=failed&test_email_error={quote(error or 'Unknown error')}",
+            status_code=303,
+        )
 
 
 NOTIFICATIONS_PAGE_SIZE = 20

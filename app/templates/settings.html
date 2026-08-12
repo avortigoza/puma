@@ -67,8 +67,50 @@
     </div>
     {{ toggle("notifications_enabled", current.notifications_enabled == "true", "Queue a notification when a genuinely newer version is found") }}
     <p class="text-xs text-gray-400 dark:text-gray-500">
-      This controls whether notifications are queued internally. Delivery (email, Slack, etc.) isn't wired up yet - queued notifications are visible in-app but nothing external is sent.
+      This controls the in-app notification bell. See Email Notifications below for sending an actual email too.
     </p>
+  </div>
+
+  <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-5 space-y-4">
+    <div class="flex items-center gap-2 font-semibold text-gray-700 dark:text-gray-200">
+      {{ icon("mail", "w-4 h-4 text-puma-primary") }}
+      Email Notifications
+    </div>
+
+    {% if not smtp_configured %}
+    <p class="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 rounded-lg px-3 py-2">
+      SMTP isn't configured on the server yet (PUMA_SMTP_* variables in puma.env), so email notifications won't actually send until that's set up, even with this turned on.
+    </p>
+    {% endif %}
+
+    {{ toggle("email_notifications_enabled", current.email_notifications_enabled == "true", "Also send an email when a genuinely newer version is found") }}
+
+    <div>
+      <label class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">Recipients</label>
+      <input type="text" name="notification_email_recipients"
+             value="{{ current.notification_email_recipients }}"
+             placeholder="e.g. you@example.com, teammate@example.com"
+             class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+      <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Comma-separated if more than one address.</p>
+    </div>
+
+    <button type="submit" formaction="/settings/send-test-email" formnovalidate
+            class="flex items-center gap-2 bg-puma-primary-light dark:bg-puma-primary/20 hover:bg-puma-primary/20 dark:hover:bg-puma-primary/40 border border-puma-primary text-puma-primary text-sm font-medium rounded-lg px-4 py-2 transition-colors">
+      {{ icon("mail", "w-4 h-4") }}
+      Send Test Email
+    </button>
+
+    {% if test_email == "sent" %}
+    <div class="bg-green-50 dark:bg-green-950/40 text-puma-green text-sm rounded-lg px-3 py-2 flex items-center gap-2">
+      {{ icon("check-circle", "w-4 h-4") }}
+      Test email sent - check the recipient's inbox.
+    </div>
+    {% elif test_email == "failed" %}
+    <div class="bg-red-50 dark:bg-red-950/40 text-puma-red text-sm rounded-lg px-3 py-2 flex items-start gap-2">
+      {{ icon("alert", "w-4 h-4 mt-0.5 shrink-0") }}
+      <span>Test email failed: {{ test_email_error }}</span>
+    </div>
+    {% endif %}
   </div>
 
   <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-5 space-y-4">
