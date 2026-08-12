@@ -112,7 +112,7 @@
             <form method="post" action="/applications/{{ app.id }}/check">
               <input type="hidden" name="next" value="{{ request.url.path }}">
               <button type="submit" title="Check now"
-                      class="w-8 h-8 rounded-lg bg-puma-primary-light dark:bg-puma-primary/20 text-puma-primary flex items-center justify-center hover:bg-puma-primary/20 dark:hover:bg-puma-primary/30">
+                      class="w-8 h-8 rounded-lg bg-puma-primary-light dark:bg-puma-primary/20 text-puma-primary flex items-center justify-center hover:bg-puma-primary/20 dark:hover:bg-puma-primary/40 transition-colors">
                 {{ icon("refresh", "w-4 h-4") }}
               </button>
             </form>
@@ -120,7 +120,7 @@
             <div class="relative">
               <button type="button" title="More actions"
                       onclick="togglePumaMenu(event, 'menu-{{ app.id }}')"
-                      class="w-8 h-8 rounded-lg bg-puma-primary-light dark:bg-puma-primary/20 text-puma-primary flex items-center justify-center hover:bg-puma-primary/20 dark:hover:bg-puma-primary/30">
+                      class="w-8 h-8 rounded-lg bg-puma-primary-light dark:bg-puma-primary/20 text-puma-primary flex items-center justify-center hover:bg-puma-primary/20 dark:hover:bg-puma-primary/40 transition-colors">
                 {{ icon("more-vertical", "w-4 h-4") }}
               </button>
               <div id="menu-{{ app.id }}" class="puma-app-menu hidden absolute right-0 mt-1 w-32 bg-white dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700 shadow-lg z-10 py-1 text-left">
