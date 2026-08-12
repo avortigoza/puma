@@ -309,7 +309,6 @@
   // no way to push to a closed browser without a completely different
   // mechanism (real desktop push notifications).
   (function () {
-    console.log('[PUMA toast] script starting');
     var POLL_MS = 15000;
     var STORAGE_KEY = 'puma-last-email-id';
     // sessionStorage (not a plain JS variable) so this survives a page
@@ -324,7 +323,6 @@
     try {
       var stored = sessionStorage.getItem(STORAGE_KEY);
       lastSeenId = stored !== null ? parseInt(stored, 10) : null;
-      console.log('[PUMA toast] sessionStorage read OK, lastSeenId =', lastSeenId);
     } catch (e) {
       console.error('[PUMA toast] sessionStorage READ failed - continuing without persistence:', e);
     }
@@ -367,14 +365,11 @@
 
     function poll() {
       var url = '/api/email-events' + (lastSeenId !== null ? ('?since_id=' + lastSeenId) : '');
-      console.log('[PUMA toast] polling', url);
       fetch(url)
         .then(function (r) {
-          console.log('[PUMA toast] response status', r.status);
           return r.json();
         })
         .then(function (data) {
-          console.log('[PUMA toast] data received', data);
           var isFirstEverPoll = lastSeenId === null;
           if (!isFirstEverPoll) {
             data.events.forEach(showEmailToast);
