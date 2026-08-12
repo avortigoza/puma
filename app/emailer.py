@@ -40,7 +40,7 @@ def _build_html_body(body: str, include_logo: bool) -> str:
     first since this becomes real markup."""
     escaped = html.escape(body).replace("\n", "<br>")
     logo_html = (
-        f'<img src="cid:{LOGO_CONTENT_ID}" width="56" height="56" '
+        f'<img src="cid:{LOGO_CONTENT_ID}" width="96" height="96" '
         'style="display:block; margin:0 auto 12px;" alt="PUMA">'
         if include_logo
         else ""
@@ -53,9 +53,10 @@ def _build_html_body(body: str, include_logo: bool) -> str:
         <td align="center">
           <table role="presentation" width="100%" style="max-width:520px;" cellpadding="0" cellspacing="0">
             <tr>
-              <td align="center" style="background-color:#ffffff; border-radius:12px; padding:32px; font-family:Arial, Helvetica, sans-serif; font-size:17px; line-height:1.6; color:#1f2937;">
+              <td align="center" style="background-color:#ffffff; border-radius:12px; padding:32px; font-family:Arial, Helvetica, sans-serif; font-size:19px; line-height:1.6; color:#1f2937;">
                 {logo_html}
-                <div style="color:#e82a78; font-weight:bold; font-size:20px; margin-bottom:16px;">PUMA</div>
+                <div style="color:#e82a78; font-weight:bold; font-size:24px;">PUMA</div>
+                <div style="color:#6b7280; font-size:14px; margin-bottom:20px;">Program Update Monitoring Assistant</div>
                 <div style="text-align:left; width:100%;">{escaped}</div>
               </td>
             </tr>
