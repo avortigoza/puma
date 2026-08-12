@@ -43,7 +43,15 @@
       <input type="password" name="confirm_password" {% if not editing_user %}required{% endif %}
              class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
     </div>
+    {% if editing_user and editing_user.id == user.id %}
+    <div class="flex items-start gap-3 text-sm">
+      <input type="hidden" name="is_admin" value="on">
+      <span class="inline-flex items-center gap-1 bg-puma-primary-light text-puma-primary font-medium text-xs px-2.5 py-1 rounded-full shrink-0 mt-0.5">Admin</span>
+      <span class="text-gray-500">You can't change your own admin status here - ask another admin to do this for you.</span>
+    </div>
+    {% else %}
     {{ toggle("is_admin", form.get('is_admin', editing_user.is_admin if editing_user else True), "Admin - can manage applications, settings, and other users") }}
+    {% endif %}
   </div>
 
   <div class="flex items-center gap-3">

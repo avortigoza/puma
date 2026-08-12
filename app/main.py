@@ -1226,6 +1226,16 @@ async def update_user(
                     "Can't remove admin from the last remaining admin account."
                 )
 
+        # Separately: never allow someone to remove their OWN admin access,
+        # even when other admins exist elsewhere - doing this mid-session
+        # immediately locks the person doing it out of everything admin-only,
+        # with no way to undo it themselves. Same category of protection as
+        # not being able to delete your own account.
+        if user_id == user.id and editing_user.is_admin and not is_admin:
+            errors.append(
+                "You can't remove your own admin access. Ask another admin to do this for you."
+            )
+
         if errors:
             return render(
                 request,
