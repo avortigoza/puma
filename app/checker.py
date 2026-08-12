@@ -214,6 +214,17 @@ def run_check(
             # regardless, so the very next check after re-enabling queues
             # the notification that was skipped while off.
             #
+            # Deliberately uses app_row.latest_version (the durable,
+            # already-known value) rather than obs.version (this specific
+            # check's freshly-parsed result). A conditional-fetch adapter
+            # returns CheckStatus.not_modified - not ok, with obs.version
+            # left empty - on any check where the upstream source hasn't
+            # changed since last time, which is the NORMAL steady state
+            # for most checks once an app has settled. Gating on obs.ok
+            # here would mean a pending, not-yet-notified update silently
+            # never gets flagged on any check that happens to land on a
+            # not_modified result - which is most of them.
+            #
             # In-app and email are independent toggles - either, both, or
             # neither can be on. notified_version only advances when at
             # least one channel actually handles it, so if only email is
@@ -221,17 +232,16 @@ def run_check(
             # correctly instead of finding notified_version already
             # matching and silently skipping it.
             if (
-                obs.status == CheckStatus.ok
-                and obs.version
+                app_row.latest_version
                 and app_row.installed_version
-                and versioning.is_newer(obs.version, app_row.installed_version)
-                and app_row.notified_version != obs.version
+                and versioning.is_newer(app_row.latest_version, app_row.installed_version)
+                and app_row.notified_version != app_row.latest_version
                 and (notifications_enabled or email_enabled)
             ):
                 if notifications_enabled:
                     session.add(Notification(
                         app_id=app_row.id,
-                        message=f"{app_row.name} has a new release available: {obs.version}",
+                        message=f"{app_row.name} has a new release available: {app_row.latest_version}",
                     ))
                 if email_enabled and email_recipients:
                     # Best-effort: a failed send shouldn't crash the check
@@ -244,21 +254,21 @@ def run_check(
                     email_success, email_error = send_email(
                         email_recipients,
                         f"PUMA: {app_row.name} has a new release available",
-                        f"{app_row.name} has a new release available: {obs.version}\n\n"
+                        f"{app_row.name} has a new release available: {app_row.latest_version}\n\n"
                         f"Currently installed: {app_row.installed_version}\n"
                         f"Instance: {app_row.instance_url or 'N/A'}",
                     )
                     if email_success:
                         logger.info(
                             "Email notification sent for %s %s to %s",
-                            app_row.name, obs.version, ", ".join(email_recipients),
+                            app_row.name, app_row.latest_version, ", ".join(email_recipients),
                         )
                     else:
                         logger.warning(
                             "Email notification FAILED for %s %s to %s: %s",
-                            app_row.name, obs.version, ", ".join(email_recipients), email_error,
+                            app_row.name, app_row.latest_version, ", ".join(email_recipients), email_error,
                         )
-                app_row.notified_version = obs.version
+                app_row.notified_version = app_row.latest_version
 
             session.add(obs)
             session.add(app_row)
