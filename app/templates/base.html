@@ -135,10 +135,10 @@
   <div class="flex-1 flex flex-col min-w-0">
     <!-- Topbar -->
     <header class="h-16 bg-white dark:bg-gray-900 dark:border-gray-800 border-b border-gray-100 flex items-center justify-end gap-6 px-6">
-      <form method="post" action="/account/toggle-dark-mode">
+      <form method="post" action="/account/toggle-dark-mode" class="flex items-center">
         <input type="hidden" name="next" value="{{ request.url.path if request is defined else '/' }}">
         <button type="submit" title="{{ 'Switch to light mode' if user is defined and user.dark_mode else 'Switch to dark mode' }}"
-                class="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300">
+                class="flex items-center text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300">
           {% if user is defined and user.dark_mode %}
           {{ icon("sun", "w-5 h-5") }}
           {% else %}
