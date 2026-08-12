@@ -363,10 +363,22 @@ def require_admin(user: User = Depends(require_login)) -> User:
 # Startup
 # --------------------------------------------------------------------------
 
+# Module-level reference, deliberately kept alive for the process's whole
+# lifetime. asyncio.create_task() only returns a weak-referenced handle -
+# if nothing holds a strong reference to it, the event loop is free to
+# garbage-collect the task mid-execution with no error and no warning at
+# all. This bit exactly that way: the scheduler ran for zero iterations
+# despite starting up cleanly and passing every logic test, because the
+# task itself never survived past its own creation.
+_background_tasks: set[asyncio.Task] = set()
+
+
 @app.on_event("startup")
 async def on_startup() -> None:
     SQLModel.metadata.create_all(engine)
-    asyncio.create_task(scheduled_check_loop())
+    task = asyncio.create_task(scheduled_check_loop())
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 
 
 # --------------------------------------------------------------------------
