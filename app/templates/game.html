@@ -58,8 +58,6 @@
     mountain2: { src: '/static/img/game/mountain-2.png', aspect: 231 / 72 },
     mountain3: { src: '/static/img/game/mountain-3.png', aspect: 673 / 102 }
   };
-  var CLOUD_SPRITES = [SPRITES.cloud1, SPRITES.cloud2, SPRITES.cloud3, SPRITES.cloud4];
-  var MOUNTAIN_SPRITES = [SPRITES.mountain1, SPRITES.mountain2, SPRITES.mountain3];
   var loadedCount = 0;
   var totalSprites = Object.keys(SPRITES).length;
   Object.keys(SPRITES).forEach(function (key) {
@@ -129,29 +127,25 @@
   var clouds, mountains;
 
   function initScenery() {
-    clouds = [];
-    for (var i = 0; i < 4; i++) {
-      var cs = CLOUD_SPRITES[Math.floor(Math.random() * CLOUD_SPRITES.length)];
-      var ch = 22 + Math.random() * 14;
-      clouds.push({
-        x: Math.random() * CSS_WIDTH,
-        y: 15 + Math.random() * 40,
-        sprite: cs,
-        h: ch,
-        w: ch * cs.aspect
-      });
-    }
-    mountains = [];
-    for (var j = 0; j < 4; j++) {
-      var ms = MOUNTAIN_SPRITES[Math.floor(Math.random() * MOUNTAIN_SPRITES.length)];
-      var mh = 45 + Math.random() * 30;
-      mountains.push({
-        x: j * 190 + Math.random() * 60,
-        sprite: ms,
-        h: mh,
-        w: mh * ms.aspect
-      });
-    }
+    // Fixed, deterministic layout (not randomized per run) mirroring the
+    // reference composition: a cluster of clouds upper-left/center plus
+    // one distant cloud to the right, and a pale low hill layer on the
+    // left blending into a taller multi-peak range on the right.
+    clouds = [
+      { sprite: SPRITES.cloud1, x: 118, y: 94, h: 19 },
+      { sprite: SPRITES.cloud2, x: 214, y: 70, h: 28 },
+      { sprite: SPRITES.cloud3, x: 314, y: 120, h: 16 },
+      { sprite: SPRITES.cloud4, x: 606, y: 96, h: 23 }
+    ];
+    clouds.forEach(function (c) { c.w = c.h * c.sprite.aspect; });
+
+    mountains = [
+      { sprite: SPRITES.mountain2, x: -30, h: 36 },
+      { sprite: SPRITES.mountain2, x: 70, h: 34 },
+      { sprite: SPRITES.mountain2, x: 190, h: 38 },
+      { sprite: SPRITES.mountain3, x: 330, h: 58 }
+    ];
+    mountains.forEach(function (m) { m.w = m.h * m.sprite.aspect; });
   }
 
   function resetGame() {
@@ -249,9 +243,15 @@
     mountains.forEach(function (m) {
       if (m.sprite.loaded) ctx.drawImage(m.sprite.img, m.x, GROUND_Y - m.h, m.w, m.h);
     });
+    // Clouds get smoothed/antialiased scaling for a crisper "HD" look,
+    // using the same source artwork - everything else (mountains, ground,
+    // character, obstacles) stays on nearest-neighbor pixel rendering.
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
     clouds.forEach(function (c) {
       if (c.sprite.loaded) ctx.drawImage(c.sprite.img, c.x, c.y, c.w, c.h);
     });
+    ctx.imageSmoothingEnabled = false;
 
     ctx.strokeStyle = TXT_DARK;
     ctx.lineWidth = 2;
