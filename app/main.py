@@ -113,18 +113,11 @@ async def scheduled_check_loop() -> None:
     at all despite the Auto Check toggle and interval setting existing in
     Settings - they were saved to the database but nothing ever read them
     to actually trigger anything."""
-    print("[PUMA scheduler] loop coroutine entered", flush=True)
-    scheduler_logger.info("[PUMA scheduler] loop coroutine entered")
-    iteration = 0
     while True:
-        print(f"[PUMA scheduler] iteration {iteration}: about to sleep 60s", flush=True)
         await asyncio.sleep(60)
-        iteration += 1
-        print(f"[PUMA scheduler] iteration {iteration}: woke up, checking", flush=True)
         try:
             with Session(engine) as session:
                 enabled = get_setting(session, "auto_check_enabled", "true") == "true"
-                print(f"[PUMA scheduler] iteration {iteration}: auto_check_enabled={enabled}", flush=True)
                 if not enabled:
                     continue
                 interval_raw = get_setting(session, "auto_check_interval_minutes", "360")
@@ -137,21 +130,17 @@ async def scheduled_check_loop() -> None:
                     .limit(1)
                 ).first()
                 last_full_check = last_full_run.started_at if last_full_run else None
-                due = _scheduled_check_due(last_full_check, interval_minutes, datetime.now(timezone.utc))
-                print(f"[PUMA scheduler] iteration {iteration}: interval={interval_minutes}min last={last_full_check} due={due}", flush=True)
 
-                if due:
+                if _scheduled_check_due(last_full_check, interval_minutes, datetime.now(timezone.utc)):
                     scheduler_logger.info(
                         "Scheduled check due (interval=%s min, last=%s) - running now",
                         interval_minutes, last_full_check,
                     )
                     checker.run_check(session, CheckTrigger.scheduled)
-                    print(f"[PUMA scheduler] iteration {iteration}: run_check() completed", flush=True)
-        except Exception as e:
+        except Exception:
             # A single bad iteration must never kill the loop for the rest
             # of the process's life - that would silently turn Auto Check
             # back off with no way to notice short of restarting the app.
-            print(f"[PUMA scheduler] iteration {iteration}: EXCEPTION: {e!r}", flush=True)
             scheduler_logger.exception("Scheduled check loop iteration failed")
 
 
@@ -387,11 +376,9 @@ _background_tasks: set[asyncio.Task] = set()
 @app.on_event("startup")
 async def on_startup() -> None:
     SQLModel.metadata.create_all(engine)
-    print("[PUMA scheduler] on_startup running, about to create task", flush=True)
     task = asyncio.create_task(scheduled_check_loop())
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)
-    print(f"[PUMA scheduler] task created: {task}, _background_tasks now has {len(_background_tasks)} entries", flush=True)
 
 
 # --------------------------------------------------------------------------
