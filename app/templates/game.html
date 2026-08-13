@@ -105,16 +105,16 @@
   function drawMountainRange(baseX, baseW, baseH, seed) {
     var rand = seededRandom(seed);
     ctx.save();
-    ctx.filter = 'blur(4px)';
-    var bumps = 4;
+    ctx.filter = 'blur(5px)';
+    var bumps = 3;
     var step = baseW / bumps;
     for (var b = 0; b <= bumps; b++) {
-      var bx = baseX + b * step + (rand() * 20 - 10);
-      var bh = baseH * (0.55 + rand() * 0.45);
-      var bw = step * (1.1 + rand() * 0.4);
-      ctx.fillStyle = 'rgba(232, 42, 120, 0.27)';
+      var bx = baseX + b * step + (rand() * 14 - 7);
+      var bh = baseH * (0.6 + rand() * 0.4);
+      var bw = step * (1.6 + rand() * 0.5);
+      ctx.fillStyle = 'rgba(232, 42, 120, 0.16)';
       ctx.beginPath();
-      ctx.ellipse(bx, GROUND_Y - bh / 2, bw / 2, bh, 0, 0, Math.PI * 2);
+      ctx.ellipse(bx, GROUND_Y - bh * 0.35, bw / 2, bh * 0.65, 0, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.restore();
