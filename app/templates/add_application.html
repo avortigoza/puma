@@ -4,7 +4,7 @@
 {% from "base.html" import icon, checkbox %}
 
 <div class="max-w-2xl mx-auto mb-6">
-  <a href="/" class="text-sm text-gray-400 hover:text-puma-primary">&larr; Back to Dashboard</a>
+  <a href="{{ form.get('next', '/') }}" class="text-sm text-gray-400 hover:text-puma-primary">&larr; Back to {{ "Applications" if form.get('next') == "/applications" else "Dashboard" }}</a>
   <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-100 mt-2">{% if editing_app %}Edit {{ editing_app.name }}{% else %}Add Application{% endif %}</h1>
   <p class="text-gray-400 text-sm mt-1">{% if editing_app %}Update this application's monitoring settings.{% else %}Register a new app to monitor for updates.{% endif %}</p>
 </div>
@@ -14,6 +14,7 @@
 {% endif %}
 
 <form method="post" action="{% if editing_app %}/applications/{{ editing_app.id }}/edit{% else %}/applications{% endif %}" enctype="multipart/form-data" class="max-w-2xl mx-auto space-y-6">
+  <input type="hidden" name="next" value="{{ form.get('next', '/') }}">
 
   <!-- App details -->
   <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-5 space-y-4">
@@ -267,7 +268,7 @@
             class="bg-puma-primary hover:bg-puma-primary-dark text-white font-medium rounded-lg px-5 py-2.5 text-sm transition">
       {% if editing_app %}Save Changes{% else %}Add Application{% endif %}
     </button>
-    <a href="/" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">Cancel</a>
+    <a href="{{ form.get('next', '/') }}" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">Cancel</a>
   </div>
 </form>
 

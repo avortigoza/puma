@@ -732,7 +732,7 @@ def serve_app_logo(filename: str, user: User = Depends(require_login)):
 
 
 @app.get("/applications/new", response_class=HTMLResponse)
-def new_application_form(request: Request, user: User = Depends(require_admin)):
+def new_application_form(request: Request, next: str = "/", user: User = Depends(require_admin)):
     return render(
         request,
         "add_application.html",
@@ -740,7 +740,7 @@ def new_application_form(request: Request, user: User = Depends(require_admin)):
             "user": user,
             "source_types": adapters.catalogue(),
             "error": None,
-            "form": {},
+            "form": {"next": safe_redirect_target(next)},
             "editing_app": None,
         },
     )
@@ -924,16 +924,19 @@ async def create_application(request: Request, user: User = Depends(require_admi
         session.add(row)
         session.commit()
 
-    return RedirectResponse("/", status_code=303)
+    return RedirectResponse(safe_redirect_target(form.get("next")), status_code=303)
 
 
 @app.get("/applications/{app_id}/edit", response_class=HTMLResponse)
-def edit_application_form(app_id: int, request: Request, user: User = Depends(require_admin)):
+def edit_application_form(
+    app_id: int, request: Request, next: str = "/", user: User = Depends(require_admin)
+):
     with Session(engine) as session:
         app_row = session.get(MonitoredApp, app_id)
         if not app_row:
             return RedirectResponse("/", status_code=303)
         form_dict = app_to_form_dict(app_row)
+        form_dict["next"] = safe_redirect_target(next)
 
     return render(
         request,
@@ -956,11 +959,12 @@ async def update_application(app_id: int, request: Request, user: User = Depends
     has_logo_upload = bool(logo_upload is not None and getattr(logo_upload, "filename", ""))
     remove_logo = form.get("remove_logo") == "on"
     pending_logo_token = (form.get("pending_logo_token") or "").strip() or None
+    redirect_target = safe_redirect_target(form.get("next"))
 
     with Session(engine) as session:
         app_row = session.get(MonitoredApp, app_id)
         if not app_row:
-            return RedirectResponse("/", status_code=303)
+            return RedirectResponse(redirect_target, status_code=303)
 
         if fields["name"] and not errors:
             existing = session.exec(
@@ -1041,7 +1045,7 @@ async def update_application(app_id: int, request: Request, user: User = Depends
         session.add(app_row)
         session.commit()
 
-    return RedirectResponse("/", status_code=303)
+    return RedirectResponse(redirect_target, status_code=303)
 
 
 @app.post("/applications/{app_id}/delete")
