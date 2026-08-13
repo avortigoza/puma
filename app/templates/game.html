@@ -50,10 +50,10 @@
     rock: { src: '/static/img/game/rock.png', aspect: 91 / 57 },
     bush: { src: '/static/img/game/bush.png', aspect: 84 / 57 },
     bird: { src: '/static/img/game/bird.png', aspect: 107 / 91 },
-    cloud1: { src: '/static/img/game/cloud-1.png', aspect: 112 / 53 },
-    cloud2: { src: '/static/img/game/cloud-2.png', aspect: 160 / 66 },
-    cloud3: { src: '/static/img/game/cloud-3.png', aspect: 82 / 41 },
-    cloud4: { src: '/static/img/game/cloud-4.png', aspect: 101 / 50 },
+    cloud1: { src: '/static/img/game/cloud-1.png', aspect: 218 / 96 },
+    cloud2: { src: '/static/img/game/cloud-2.png', aspect: 159 / 79 },
+    cloud3: { src: '/static/img/game/cloud-3.png', aspect: 142 / 73 },
+    cloud4: { src: '/static/img/game/cloud-4.png', aspect: 127 / 67 },
     mountain1: { src: '/static/img/game/mountain-1.png', aspect: 393 / 128 },
     mountain2: { src: '/static/img/game/mountain-2.png', aspect: 231 / 72 },
     mountain3: { src: '/static/img/game/mountain-3.png', aspect: 673 / 102 }
@@ -131,11 +131,16 @@
     // reference composition: a cluster of clouds upper-left/center plus
     // one distant cloud to the right, and a pale low hill layer on the
     // left blending into a taller multi-peak range on the right.
+    // Cloud layout (position + size) is copied directly from the
+    // reference photo's spacing: cloud-1 is the big topmost cluster,
+    // cloud-2 sits lower-left, cloud-3 lower-right, and cloud-4 is the
+    // small one lowest/most central - proportions and gaps mirror the
+    // reference rather than being eyeballed.
     clouds = [
-      { sprite: SPRITES.cloud1, x: 118, y: 46, h: 19 },
-      { sprite: SPRITES.cloud2, x: 214, y: 22, h: 28 },
-      { sprite: SPRITES.cloud3, x: 314, y: 67, h: 16 },
-      { sprite: SPRITES.cloud4, x: 606, y: 44, h: 23 }
+      { sprite: SPRITES.cloud1, x: 190, y: 16, h: 30 },
+      { sprite: SPRITES.cloud2, x: 72, y: 48, h: 24 },
+      { sprite: SPRITES.cloud3, x: 606, y: 50, h: 22 },
+      { sprite: SPRITES.cloud4, x: 296, y: 80, h: 20 }
     ];
     clouds.forEach(function (c) { c.w = c.h * c.sprite.aspect; });
 
