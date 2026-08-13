@@ -7,3 +7,6 @@ __pycache__/
 *.env
 tailwindcss
 app/static/css/output.css
+node_modules/
+package.json
+package-lock.json

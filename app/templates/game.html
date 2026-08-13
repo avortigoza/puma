@@ -38,9 +38,9 @@
     <div class="rounded-xl border border-gray-100 bg-white mt-4 p-6 grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-0 md:divide-x md:divide-dashed md:divide-gray-200">
       <div class="md:pr-6">
         <div class="text-center text-sm font-bold pixel-font mb-4" style="color:#c2246a;">
-          🐾&nbsp; PUMA SPRITES &nbsp;🐾
+          🐾&nbsp; PUMA SPRITE &nbsp;🐾
         </div>
-        <div class="grid grid-cols-4 gap-3" id="sprite-gallery"></div>
+        <div class="flex justify-center" id="sprite-gallery"></div>
       </div>
       <div class="md:pl-6">
         <div class="text-center text-sm font-bold pixel-font mb-4" style="color:#c2246a;">
@@ -72,164 +72,29 @@
 <script>
 (function () {
   // ------------------------------------------------------------------
-  // Pixel-art drawing helpers
+  // Real sprite images (uploaded pixel-art), replacing the procedural
+  // bitmap-drawn placeholders.
   // ------------------------------------------------------------------
-  var PALETTE = {
-    B: '#ee5b99', // body
-    D: '#b81d5c', // dark outline / shadow
-    L: '#f9a8c9', // light belly
-    E: '#3d0a1f', // eye
-    O: '#e0468e'  // secondary/outline for obstacles
+  var SPRITES = {
+    puma: { src: '/static/img/game/puma-run.png', aspect: 202 / 114 },
+    cactus: { src: '/static/img/game/cactus.png', aspect: 110 / 141 },
+    rock: { src: '/static/img/game/rock.png', aspect: 95 / 73 },
+    bush: { src: '/static/img/game/bush.png', aspect: 95 / 72 },
+    bird: { src: '/static/img/game/bird.png', aspect: 141 / 123 }
   };
-
-  // Draws a bitmap (array of equal-length strings, '.' = transparent)
-  // at (x, y) using `px` device pixels per bitmap cell.
-  function drawBitmap(ctx, bitmap, x, y, px) {
-    for (var row = 0; row < bitmap.length; row++) {
-      var line = bitmap[row];
-      for (var col = 0; col < line.length; col++) {
-        var ch = line[col];
-        if (ch === '.') continue;
-        ctx.fillStyle = PALETTE[ch] || '#000';
-        ctx.fillRect(Math.round(x + col * px), Math.round(y + row * px), px, px);
-      }
-    }
-  }
-
-  function bitmapSize(bitmap, px) {
-    return { w: bitmap[0].length * px, h: bitmap.length * px };
-  }
+  var loadedCount = 0;
+  var totalSprites = Object.keys(SPRITES).length;
+  Object.keys(SPRITES).forEach(function (key) {
+    var s = SPRITES[key];
+    s.img = new Image();
+    s.loaded = false;
+    s.img.onload = function () { s.loaded = true; loadedCount++; };
+    s.img.src = s.src;
+  });
 
   // ------------------------------------------------------------------
-  // Sprite bitmaps - 22 x 13 grid, puma facing right
+  // Sprite / obstacle gallery (below the game) - shows the real images
   // ------------------------------------------------------------------
-  var RUN1 = [
-    "..........................",
-    ".DDD..................DD..",
-    ".DD.................DDBD..",
-    "DBD................DBBBD..",
-    "DBD...............DBBEBBD.",
-    "DBBD...DDDDDDDDDD.DBBBBBBD",
-    ".DBBDDDBBBBBBBBBBDBBBBBBD.",
-    ".DBBBBBBBBBBBBBBBBBBBBBD..",
-    "..DDDDDBBBBBBBBBBBBBDDD...",
-    ".......DLLLDDDDDLLLD......",
-    ".......DLDD.....DDLD......",
-    ".......DD.D.....D.DD......",
-    ".......DD.........DD......",
-    ".......D...........D......"
-  ];
-  var RUN2 = [
-    "..........................",
-    ".DDD..................DD..",
-    ".DD.................DDBD..",
-    "DBD................DBBBD..",
-    "DBD...............DBBEBBD.",
-    "DBBD...DDDDDDDDDD.DBBBBBBD",
-    ".DBBDDDBBBBBBBBBBDBBBBBBD.",
-    ".DBBBBBBBBBBBBBBBBBBBBBD..",
-    "..DDDDDBBBBBBBBBBBBBDDD...",
-    ".......DLLLDDDDDLLLD......",
-    ".......DDLD.....DLDD......",
-    ".......D.DD.....DD.D......",
-    ".........DD.....DD........",
-    "..........D.....D........."
-  ];
-  var JUMP = [
-    "..........................",
-    ".DDD..................DD..",
-    ".DD.................DDBD..",
-    "DBD................DBBBD..",
-    "DBD...............DBBEBBD.",
-    "DBBD...DDDDDDDDDD.DBBBBBBD",
-    ".DBBDDDBBBBBBBBBBDBBBBBBD.",
-    ".DBBBBBBBBBBBBBBBBBBBBBD..",
-    "..DDDDDBBBBBBBBBBBBBDDD...",
-    ".......DLDLDDDDDLDLD......",
-    ".......DD.D.....D.DD......",
-    "..........................",
-    "..........................",
-    ".........................."
-  ];
-  var GAMEOVER = [
-    "..........................",
-    "..........................",
-    "..........................",
-    "..........................",
-    "..........................",
-    "..........................",
-    "..........................",
-    "......................DD..",
-    "....................DDBBD.",
-    "DD...DDDDDDDDDDDDDD.ELLLD.",
-    "DLDDDLLLLLLLLLLLLLLDLLLLD.",
-    ".DDDDLLLLLLLLLLLLLLDDLLLD.",
-    ".....DDDDDDDDDDDDDD..DDD..",
-    ".........................."
-  ];
-  var CACTUS = [
-    "............",
-    "....DDDD....",
-    ".DD.DBBD....",
-    ".DD.DBBD....",
-    ".DD.DBBBDDD.",
-    ".DBDBBBBBBD.",
-    ".DBBBBBBDBD.",
-    ".DDDBBBD.DD.",
-    "....DBBD.DD.",
-    "....DBBD....",
-    "....DBBD....",
-    "....DBBD....",
-    "....DBBD....",
-    "....DDDD...."
-  ];
-  var ROCK = [
-    "............",
-    "......DDDD..",
-    ".....DBBBBD.",
-    "..DDDBBBBBBD",
-    ".DBBBBBBBBBD",
-    "DBBBBBBBBBBD",
-    "DBBBBBBBBBBD",
-    "DDBBBBBBBBD.",
-    "..DDDDDDDD.."
-  ];
-  var BUSH = [
-    "......DDD...",
-    ".....DBBD...",
-    ".DDDDBBBBD..",
-    "DBBBBBBBBBD.",
-    "DBBBBBBBBBBD",
-    "DBBBBBBBBBBD",
-    "DBBBBBBBBBBD",
-    ".DDDDDDDDDD."
-  ];
-  var BIRD = [
-    ".DD............DD.",
-    "..DD..........DD..",
-    "...DDD......DDD...",
-    ".....DD....DBD....",
-    "......DDDDDBBD....",
-    "......DBBBBBD.....",
-    ".....DBDDDDDD.....",
-    "....DDD.....DD....",
-    "..DDD........DDD..",
-    ".DD............DD."
-  ];
-
-  var GALLERY_ITEMS_SPRITES = [
-    { bitmap: RUN1, label: 'RUN 1' },
-    { bitmap: RUN2, label: 'RUN 2' },
-    { bitmap: JUMP, label: 'JUMP' },
-    { bitmap: GAMEOVER, label: 'GAME OVER' }
-  ];
-  var GALLERY_ITEMS_OBSTACLES = [
-    { bitmap: CACTUS, label: 'CACTUS' },
-    { bitmap: ROCK, label: 'ROCK' },
-    { bitmap: BUSH, label: 'BUSH' },
-    { bitmap: BIRD, label: 'BIRD' }
-  ];
-
   function buildGallery(containerId, items) {
     var container = document.getElementById(containerId);
     items.forEach(function (item) {
@@ -240,25 +105,27 @@
       label.className = 'pixel-font text-[8px] text-gray-400';
       label.textContent = item.label;
 
-      var cnv = document.createElement('canvas');
-      var px = 6;
-      var size = bitmapSize(item.bitmap, px);
-      cnv.width = size.w;
-      cnv.height = size.h;
-      cnv.style.width = '100%';
-      cnv.style.maxWidth = '76px';
-      cnv.className = 'pixelated';
-      var cctx = cnv.getContext('2d');
-      cctx.imageSmoothingEnabled = false;
-      drawBitmap(cctx, item.bitmap, 0, 0, px);
+      var imgEl = document.createElement('img');
+      imgEl.src = item.sprite.src;
+      imgEl.className = 'pixelated';
+      imgEl.style.width = '100%';
+      imgEl.style.maxWidth = '76px';
+      imgEl.alt = item.label;
 
       cell.appendChild(label);
-      cell.appendChild(cnv);
+      cell.appendChild(imgEl);
       container.appendChild(cell);
     });
   }
-  buildGallery('sprite-gallery', GALLERY_ITEMS_SPRITES);
-  buildGallery('obstacle-gallery', GALLERY_ITEMS_OBSTACLES);
+  buildGallery('sprite-gallery', [
+    { sprite: SPRITES.puma, label: 'PUMA' }
+  ]);
+  buildGallery('obstacle-gallery', [
+    { sprite: SPRITES.cactus, label: 'CACTUS' },
+    { sprite: SPRITES.rock, label: 'ROCK' },
+    { sprite: SPRITES.bush, label: 'GRASS' },
+    { sprite: SPRITES.bird, label: 'BIRD' }
+  ]);
 
   // ------------------------------------------------------------------
   // Game
@@ -280,20 +147,18 @@
   var GROUND_Y = 190;
   var GRAVITY = 0.7;
   var JUMP_VELOCITY = -12.5;
-  var PX = 5.2; // pixel size for the running character
   var CHAR_X = 40;
-  var CHAR_H = bitmapSize(RUN1, PX).h;
-  var CHAR_W = bitmapSize(RUN1, PX).w;
+  var CHAR_H = 46;
+  var CHAR_W = CHAR_H * SPRITES.puma.aspect;
 
-  var OBSTACLE_PX = 4.4;
+  var OBSTACLE_H = 40;
   var OBSTACLE_TYPES = [
-    { bitmap: CACTUS, ground: true },
-    { bitmap: ROCK, ground: true },
-    { bitmap: BUSH, ground: true },
-    { bitmap: BIRD, ground: false, flyHeight: 70 }
+    { sprite: SPRITES.cactus, ground: true },
+    { sprite: SPRITES.rock, ground: true },
+    { sprite: SPRITES.bush, ground: true },
+    { sprite: SPRITES.bird, ground: false, flyHeight: 75 }
   ];
 
-  var TXT_MED = '#e07aa8';
   var TXT_DARK = '#4a0d29';
 
   var STORAGE_KEY = 'puma-run-best-score';
@@ -368,8 +233,9 @@
 
     if (distance >= nextObstacleDistance) {
       var type = OBSTACLE_TYPES[Math.floor(Math.random() * OBSTACLE_TYPES.length)];
-      var size = bitmapSize(type.bitmap, OBSTACLE_PX);
-      obstacles.push({ x: CSS_WIDTH, type: type, w: size.w, h: size.h });
+      var h = type.ground ? OBSTACLE_H : OBSTACLE_H * 0.9;
+      var w = h * type.sprite.aspect;
+      obstacles.push({ x: CSS_WIDTH, type: type, w: w, h: h });
       nextObstacleDistance = distance + 200 + Math.random() * 220 - speed * 8;
     }
 
@@ -432,12 +298,9 @@
   function draw() {
     ctx.clearRect(0, 0, CSS_WIDTH, CSS_HEIGHT);
 
-    // sky mountains
     mountains.forEach(function (m) { drawMountain(m.x, m.w, m.h); });
-    // clouds
     clouds.forEach(function (c) { drawCloud(c.x, c.y, c.scale); });
 
-    // ground line + dotted texture
     ctx.strokeStyle = TXT_DARK;
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -449,17 +312,30 @@
       ctx.fillRect(gx, GROUND_Y + 6, 3, 3);
     }
 
-    // character
-    var pose;
-    if (state === 'gameover') pose = GAMEOVER;
-    else if (isJumping) pose = JUMP;
-    else pose = (Math.floor(frame / 6) % 2 === 0) ? RUN1 : RUN2;
-    drawBitmap(ctx, pose, CHAR_X, charY, PX);
+    // character - single running-pose sprite; a light bob simulates a gait
+    // cycle, and it tips over on game over since no separate frames exist
+    var puma = SPRITES.puma;
+    if (puma.loaded) {
+      ctx.save();
+      if (state === 'gameover') {
+        var cx = CHAR_X + CHAR_W / 2, cy = charY + CHAR_H;
+        ctx.translate(cx, cy);
+        ctx.rotate(-Math.PI / 2.1);
+        ctx.translate(-cx, -cy);
+        ctx.drawImage(puma.img, CHAR_X, charY, CHAR_W, CHAR_H);
+      } else {
+        var bob = (!isJumping && state === 'running') ? Math.sin(frame * 0.6) * 2 : 0;
+        ctx.drawImage(puma.img, CHAR_X, charY + bob, CHAR_W, CHAR_H);
+      }
+      ctx.restore();
+    }
 
     // obstacles
     obstacles.forEach(function (ob) {
       var obY = ob.type.ground ? GROUND_Y - ob.h : GROUND_Y - ob.type.flyHeight;
-      drawBitmap(ctx, ob.type.bitmap, ob.x, obY, OBSTACLE_PX);
+      if (ob.type.sprite.loaded) {
+        ctx.drawImage(ob.type.sprite.img, ob.x, obY, ob.w, ob.h);
+      }
     });
   }
 
@@ -478,6 +354,11 @@
   initScenery();
   resetGame();
   draw();
+  // keep redrawing on the ready screen until images finish loading
+  var readyPoll = setInterval(function () {
+    if (state === 'ready') { draw(); }
+    if (loadedCount >= totalSprites) { clearInterval(readyPoll); draw(); }
+  }, 100);
 
   window.addEventListener('keydown', function (e) {
     if (e.code === 'Space') {
