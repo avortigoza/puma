@@ -49,8 +49,17 @@
     cactus: { src: '/static/img/game/cactus.png', aspect: 83 / 110 },
     rock: { src: '/static/img/game/rock.png', aspect: 91 / 57 },
     bush: { src: '/static/img/game/bush.png', aspect: 84 / 57 },
-    bird: { src: '/static/img/game/bird.png', aspect: 107 / 91 }
+    bird: { src: '/static/img/game/bird.png', aspect: 107 / 91 },
+    cloud1: { src: '/static/img/game/cloud-1.png', aspect: 112 / 53 },
+    cloud2: { src: '/static/img/game/cloud-2.png', aspect: 160 / 66 },
+    cloud3: { src: '/static/img/game/cloud-3.png', aspect: 82 / 41 },
+    cloud4: { src: '/static/img/game/cloud-4.png', aspect: 101 / 50 },
+    mountain1: { src: '/static/img/game/mountain-1.png', aspect: 393 / 128 },
+    mountain2: { src: '/static/img/game/mountain-2.png', aspect: 231 / 72 },
+    mountain3: { src: '/static/img/game/mountain-3.png', aspect: 673 / 102 }
   };
+  var CLOUD_SPRITES = [SPRITES.cloud1, SPRITES.cloud2, SPRITES.cloud3, SPRITES.cloud4];
+  var MOUNTAIN_SPRITES = [SPRITES.mountain1, SPRITES.mountain2, SPRITES.mountain3];
   var loadedCount = 0;
   var totalSprites = Object.keys(SPRITES).length;
   Object.keys(SPRITES).forEach(function (key) {
@@ -60,65 +69,6 @@
     s.img.onload = function () { s.loaded = true; loadedCount++; };
     s.img.src = s.src;
   });
-
-  // ------------------------------------------------------------------
-  // Clouds and mountains are drawn directly (not raster sprites), so
-  // they stay crisp at any resolution instead of showing JPEG/upscale
-  // artifacts from a photographed reference sheet.
-  // ------------------------------------------------------------------
-  var CLOUD_BITMAP = [
-    "....................",
-    ".......D............",
-    ".....DDWDD..........",
-    "....DWWWWWDDDD......",
-    "..DDWWWWWWWWWWD.....",
-    ".DWWWWWWWWWWWWWDD...",
-    ".DWWWWWWWWWWWWWWD...",
-    ".DWWWWWWWWWWWWWWD...",
-    "..DDDDDDDDDDDDDDD...",
-    "...................."
-  ];
-  function drawCloud(x, y, h) {
-    var px = h / CLOUD_BITMAP.length;
-    for (var ry = 0; ry < CLOUD_BITMAP.length; ry++) {
-      var row = CLOUD_BITMAP[ry];
-      for (var cx = 0; cx < row.length; cx++) {
-        var ch = row[cx];
-        if (ch === '.') continue;
-        ctx.fillStyle = ch === 'W' ? '#ffffff' : '#f7a9c9';
-        ctx.fillRect(Math.round(x + cx * px), Math.round(y + ry * px), Math.ceil(px), Math.ceil(px));
-      }
-    }
-  }
-
-  // Soft, blurred pink silhouette layers - overlapping rounded bumps
-  // (like the cloud technique) rather than hard polygon peaks, to match
-  // the reference art's smooth watercolor-style mountain ranges.
-  var mountainSeeds = {};
-  function seededRandom(seed) {
-    var s = seed;
-    return function () {
-      s = (s * 9301 + 49297) % 233280;
-      return s / 233280;
-    };
-  }
-  function drawMountainRange(baseX, baseW, baseH, seed) {
-    var rand = seededRandom(seed);
-    ctx.save();
-    ctx.filter = 'blur(5px)';
-    var bumps = 3;
-    var step = baseW / bumps;
-    for (var b = 0; b <= bumps; b++) {
-      var bx = baseX + b * step + (rand() * 14 - 7);
-      var bh = baseH * (0.6 + rand() * 0.4);
-      var bw = step * (1.6 + rand() * 0.5);
-      ctx.fillStyle = 'rgba(232, 42, 120, 0.16)';
-      ctx.beginPath();
-      ctx.ellipse(bx, GROUND_Y - bh * 0.35, bw / 2, bh * 0.65, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.restore();
-  }
 
   // ------------------------------------------------------------------
   // Game
@@ -181,21 +131,25 @@
   function initScenery() {
     clouds = [];
     for (var i = 0; i < 4; i++) {
+      var cs = CLOUD_SPRITES[Math.floor(Math.random() * CLOUD_SPRITES.length)];
       var ch = 22 + Math.random() * 14;
       clouds.push({
         x: Math.random() * CSS_WIDTH,
         y: 15 + Math.random() * 40,
-        h: ch
+        sprite: cs,
+        h: ch,
+        w: ch * cs.aspect
       });
     }
     mountains = [];
     for (var j = 0; j < 4; j++) {
+      var ms = MOUNTAIN_SPRITES[Math.floor(Math.random() * MOUNTAIN_SPRITES.length)];
       var mh = 45 + Math.random() * 30;
       mountains.push({
         x: j * 190 + Math.random() * 60,
-        w: 140 + Math.random() * 80,
+        sprite: ms,
         h: mh,
-        seed: Math.floor(Math.random() * 100)
+        w: mh * ms.aspect
       });
     }
   }
@@ -293,10 +247,10 @@
     ctx.clearRect(0, 0, CSS_WIDTH, CSS_HEIGHT);
 
     mountains.forEach(function (m) {
-      drawMountainRange(m.x, m.w, m.h, m.seed);
+      if (m.sprite.loaded) ctx.drawImage(m.sprite.img, m.x, GROUND_Y - m.h, m.w, m.h);
     });
     clouds.forEach(function (c) {
-      drawCloud(c.x, c.y, c.h);
+      if (c.sprite.loaded) ctx.drawImage(c.sprite.img, c.x, c.y, c.w, c.h);
     });
 
     ctx.strokeStyle = TXT_DARK;
