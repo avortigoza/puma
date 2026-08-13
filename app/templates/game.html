@@ -33,40 +33,6 @@
               class="w-full rounded-lg cursor-pointer pixelated"
               style="background:#ffe6f0; max-width:100%; touch-action:none;"></canvas>
     </div>
-
-    <!-- Sprite / obstacle gallery -->
-    <div class="rounded-xl border border-gray-100 bg-white mt-4 p-6 grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-0 md:divide-x md:divide-dashed md:divide-gray-200">
-      <div class="md:pr-6">
-        <div class="text-center text-sm font-bold pixel-font mb-4" style="color:#c2246a;">
-          🐾&nbsp; PUMA SPRITE &nbsp;🐾
-        </div>
-        <div class="flex justify-center" id="sprite-gallery"></div>
-      </div>
-      <div class="md:pl-6">
-        <div class="text-center text-sm font-bold pixel-font mb-4" style="color:#c2246a;">
-          🐾&nbsp; OBSTACLES &nbsp;🐾
-        </div>
-        <div class="grid grid-cols-4 gap-3" id="obstacle-gallery"></div>
-      </div>
-    </div>
-
-    <!-- Controls legend -->
-    <div class="rounded-xl border border-gray-100 bg-white mt-4 p-5 flex flex-col sm:flex-row items-center justify-around gap-6 text-center sm:text-left">
-      <div class="flex items-center gap-3">
-        <div class="pixel-font text-xs px-4 py-3 rounded-lg" style="background:#fdf1f5; border:2px solid #e82a78; color:#e82a78;">SPACE</div>
-        <div>
-          <div class="font-semibold text-gray-700 text-sm">JUMP</div>
-          <div class="text-xs text-gray-400">Press SPACE to jump<br>over obstacles</div>
-        </div>
-      </div>
-      <div class="flex items-center gap-3">
-        <div class="pixel-font text-xs px-4 py-3 rounded-lg" style="background:#fdf1f5; border:2px solid #e82a78; color:#e82a78;">&uarr;</div>
-        <div>
-          <div class="font-semibold text-gray-700 text-sm">MOBILE / TOUCH</div>
-          <div class="text-xs text-gray-400">Tap the screen<br>to jump</div>
-        </div>
-      </div>
-    </div>
   </div>
 
 <script>
@@ -94,41 +60,6 @@
     s.img.onload = function () { s.loaded = true; loadedCount++; };
     s.img.src = s.src;
   });
-
-  // ------------------------------------------------------------------
-  // Sprite / obstacle gallery (below the game) - shows the real images
-  // ------------------------------------------------------------------
-  function buildGallery(containerId, items) {
-    var container = document.getElementById(containerId);
-    items.forEach(function (item) {
-      var cell = document.createElement('div');
-      cell.className = 'flex flex-col items-center gap-2';
-
-      var label = document.createElement('div');
-      label.className = 'pixel-font text-[8px] text-gray-400';
-      label.textContent = item.label;
-
-      var imgEl = document.createElement('img');
-      imgEl.src = item.sprite.src;
-      imgEl.className = 'pixelated';
-      imgEl.style.width = '100%';
-      imgEl.style.maxWidth = '76px';
-      imgEl.alt = item.label;
-
-      cell.appendChild(label);
-      cell.appendChild(imgEl);
-      container.appendChild(cell);
-    });
-  }
-  buildGallery('sprite-gallery', [
-    { sprite: SPRITES.puma, label: 'PUMA' }
-  ]);
-  buildGallery('obstacle-gallery', [
-    { sprite: SPRITES.cactus, label: 'CACTUS' },
-    { sprite: SPRITES.rock, label: 'ROCK' },
-    { sprite: SPRITES.bush, label: 'GRASS' },
-    { sprite: SPRITES.bird, label: 'BIRD' }
-  ]);
 
   // ------------------------------------------------------------------
   // Game
