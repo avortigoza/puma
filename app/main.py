@@ -72,6 +72,22 @@ APP_LOGOS_DIR.mkdir(parents=True, exist_ok=True)
 MAX_LOGO_SIZE_BYTES = 2 * 1024 * 1024  # 2MB
 ALLOWED_LOGO_CONTENT_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml"}
 
+# A browser can never re-populate a <input type="file"> after a page
+# reload - it's a security restriction, not a bug we can work around
+# client-side. So if the Add/Edit Application form gets re-rendered
+# because of some OTHER validation error (duplicate name, untrusted
+# host, a missing required source field...), a logo the user already
+# picked would otherwise vanish with no indication, and saving on the
+# retry silently goes out without it. To fix that, a logo submitted
+# alongside a failed submission is staged here under a random token;
+# the re-rendered form carries that token in a hidden field, and the
+# retry picks the staged file back up automatically unless the user
+# chooses a different one. Cleaned up once it's actually used, or
+# opportunistically swept if abandoned (see cleanup_stale_pending_logos).
+PENDING_LOGOS_DIR = Path(DB_PATH).parent / "pending_logos"
+PENDING_LOGOS_DIR.mkdir(parents=True, exist_ok=True)
+PENDING_LOGO_MAX_AGE_SECONDS = 60 * 60  # 1 hour
+
 # Everything is stored/computed in UTC internally (datetime.now(timezone.utc)
 # throughout). This is only for *display* - converting absolute timestamps
 # to the team's actual timezone before formatting, so dates/times shown in
@@ -285,6 +301,100 @@ def save_uploaded_logo(upload, app_slug: str) -> str:
         except Exception:
             raise ValueError("That file doesn't appear to be a valid image.")
 
+    safe_ext = _LOGO_EXT_BY_CONTENT_TYPE[content_type]
+    safe_filename = f"{app_slug}-{uuid.uuid4().hex[:8]}{safe_ext}"
+    (APP_LOGOS_DIR / safe_filename).write_bytes(contents)
+    return safe_filename
+
+
+def cleanup_stale_pending_logos() -> None:
+    """Best-effort sweep of staged logos nobody ever came back to finish
+    submitting (e.g. they fixed the error in a different tab, or just gave
+    up). Cheap enough to run inline whenever we stage a new one."""
+    cutoff = datetime.now(timezone.utc).timestamp() - PENDING_LOGO_MAX_AGE_SECONDS
+    try:
+        for f in PENDING_LOGOS_DIR.iterdir():
+            try:
+                if f.is_file() and f.stat().st_mtime < cutoff:
+                    f.unlink()
+            except OSError:
+                pass
+    except OSError:
+        pass
+
+
+def stage_pending_logo(upload) -> str:
+    """Same validation as save_uploaded_logo, but parks the file under
+    PENDING_LOGOS_DIR instead of committing it as a real app logo yet.
+    Returns an opaque token (the staged filename) to round-trip through
+    a hidden form field. Raises ValueError on the same conditions
+    save_uploaded_logo does."""
+    content_type = (upload.content_type or "").lower()
+    if content_type not in _LOGO_EXT_BY_CONTENT_TYPE:
+        raise ValueError(
+            f"Unsupported image type ({content_type or 'unknown'}). "
+            "Use PNG, JPEG, GIF, WebP, or SVG."
+        )
+
+    contents = upload.file.read()
+    if not contents:
+        raise ValueError("The uploaded logo file is empty.")
+    if len(contents) > MAX_LOGO_SIZE_BYTES:
+        raise ValueError(
+            f"That logo is too large ({len(contents) // 1024}KB) - "
+            f"max size is {MAX_LOGO_SIZE_BYTES // 1024}KB."
+        )
+    if content_type != "image/svg+xml":
+        try:
+            img = Image.open(io.BytesIO(contents))
+            img.verify()
+        except Exception:
+            raise ValueError("That file doesn't appear to be a valid image.")
+
+    cleanup_stale_pending_logos()
+    safe_ext = _LOGO_EXT_BY_CONTENT_TYPE[content_type]
+    token = f"{uuid.uuid4().hex}{safe_ext}"
+    (PENDING_LOGOS_DIR / token).write_bytes(contents)
+    return token
+
+
+def load_pending_logo(token: str) -> Optional[tuple[bytes, str]]:
+    """Reads back a staged logo by token. Returns (contents, content_type)
+    or None if the token is missing/invalid/expired - callers should treat
+    that the same as no logo having been provided at all, rather than as
+    an error, since it just means the staged copy aged out."""
+    if not token or "/" in token or "\\" in token or ".." in token:
+        return None
+    path = (PENDING_LOGOS_DIR / token).resolve()
+    if PENDING_LOGOS_DIR.resolve() not in path.parents or not path.is_file():
+        return None
+    ext = path.suffix.lower()
+    content_type = next(
+        (ct for ct, e in _LOGO_EXT_BY_CONTENT_TYPE.items() if e == ext), None
+    )
+    if not content_type:
+        return None
+    return path.read_bytes(), content_type
+
+
+def discard_pending_logo(token: Optional[str]) -> None:
+    """Best-effort cleanup of a staged file once it's been used or is no
+    longer needed - mirrors delete_logo_file's caution about never letting
+    cleanup failure block the actual request."""
+    if not token or "/" in token or "\\" in token or ".." in token:
+        return
+    try:
+        path = PENDING_LOGOS_DIR / token
+        if path.is_file():
+            path.unlink()
+    except OSError:
+        pass
+
+
+def save_logo_bytes(contents: bytes, content_type: str, app_slug: str) -> str:
+    """Commits already-validated logo bytes (e.g. loaded back from a
+    staged pending upload) as a real app logo, the same way the tail end
+    of save_uploaded_logo does for a fresh upload."""
     safe_ext = _LOGO_EXT_BY_CONTENT_TYPE[content_type]
     safe_filename = f"{app_slug}-{uuid.uuid4().hex[:8]}{safe_ext}"
     (APP_LOGOS_DIR / safe_filename).write_bytes(contents)
@@ -737,6 +847,7 @@ async def create_application(request: Request, user: User = Depends(require_admi
     fields, errors = parse_app_form(form)
     logo_upload = form.get("logo_file")
     has_logo_upload = bool(logo_upload is not None and getattr(logo_upload, "filename", ""))
+    pending_logo_token = (form.get("pending_logo_token") or "").strip() or None
 
     with Session(engine) as session:
         if fields["name"] and not errors:
@@ -749,6 +860,24 @@ async def create_application(request: Request, user: User = Depends(require_admi
         validate_trusted_hosts(session, fields, errors)
 
         if errors:
+            # A logo the user already picked can't be refilled into the
+            # file input on this reload (browsers block that outright), so
+            # stage it - or keep whatever was already staged from an
+            # earlier retry - and carry the token through so it's picked
+            # back up automatically once they fix the actual error above.
+            carry_token = pending_logo_token
+            if has_logo_upload:
+                try:
+                    carry_token = stage_pending_logo(logo_upload)
+                    discard_pending_logo(pending_logo_token)
+                except ValueError as e:
+                    errors.append(str(e))
+                    carry_token = pending_logo_token
+            form_dict = dict(form)
+            if carry_token:
+                form_dict["pending_logo_token"] = carry_token
+            else:
+                form_dict.pop("pending_logo_token", None)
             return render(
                 request,
                 "add_application.html",
@@ -756,7 +885,7 @@ async def create_application(request: Request, user: User = Depends(require_admi
                     "user": user,
                     "source_types": adapters.catalogue(),
                     "error": " ".join(errors),
-                    "form": dict(form),
+                    "form": form_dict,
                     "editing_app": None,
                 },
                 status_code=400,
@@ -785,6 +914,11 @@ async def create_application(request: Request, user: User = Depends(require_admi
                     },
                     status_code=400,
                 )
+            discard_pending_logo(pending_logo_token)
+        elif pending_logo_token and (pending := load_pending_logo(pending_logo_token)):
+            contents, content_type = pending
+            saved_logo_filename = save_logo_bytes(contents, content_type, slug)
+            discard_pending_logo(pending_logo_token)
 
         row = MonitoredApp(slug=slug, custom_logo_filename=saved_logo_filename, **fields)
         session.add(row)
@@ -821,6 +955,7 @@ async def update_application(app_id: int, request: Request, user: User = Depends
     logo_upload = form.get("logo_file")
     has_logo_upload = bool(logo_upload is not None and getattr(logo_upload, "filename", ""))
     remove_logo = form.get("remove_logo") == "on"
+    pending_logo_token = (form.get("pending_logo_token") or "").strip() or None
 
     with Session(engine) as session:
         app_row = session.get(MonitoredApp, app_id)
@@ -839,6 +974,23 @@ async def update_application(app_id: int, request: Request, user: User = Depends
         validate_trusted_hosts(session, fields, errors)
 
         if errors:
+            # Same story as create_application: a chosen logo can't
+            # survive this reload in the file input itself, so stage it
+            # (or keep whatever was already staged) and carry the token
+            # forward for the retry to pick up automatically.
+            carry_token = pending_logo_token
+            if has_logo_upload:
+                try:
+                    carry_token = stage_pending_logo(logo_upload)
+                    discard_pending_logo(pending_logo_token)
+                except ValueError as e:
+                    errors.append(str(e))
+                    carry_token = pending_logo_token
+            form_dict = dict(form)
+            if carry_token:
+                form_dict["pending_logo_token"] = carry_token
+            else:
+                form_dict.pop("pending_logo_token", None)
             return render(
                 request,
                 "add_application.html",
@@ -846,7 +998,7 @@ async def update_application(app_id: int, request: Request, user: User = Depends
                     "user": user,
                     "source_types": adapters.catalogue(),
                     "error": " ".join(errors),
-                    "form": dict(form),
+                    "form": form_dict,
                     "editing_app": app_row,
                 },
                 status_code=400,
@@ -870,11 +1022,18 @@ async def update_application(app_id: int, request: Request, user: User = Depends
                     status_code=400,
                 )
             delete_logo_file(old_logo_filename)
+            discard_pending_logo(pending_logo_token)
+        elif pending_logo_token and (pending := load_pending_logo(pending_logo_token)):
+            contents, content_type = pending
+            fields["custom_logo_filename"] = save_logo_bytes(contents, content_type, app_row.slug)
+            delete_logo_file(old_logo_filename)
+            discard_pending_logo(pending_logo_token)
         elif remove_logo:
             fields["custom_logo_filename"] = None
             delete_logo_file(old_logo_filename)
-        # else: no upload and not removing - custom_logo_filename simply
-        # isn't in `fields`, so the setattr loop below leaves it untouched.
+        # else: no upload, no staged pending logo, and not removing -
+        # custom_logo_filename simply isn't in `fields`, so the setattr
+        # loop below leaves it untouched.
 
         for key, value in fields.items():
             setattr(app_row, key, value)

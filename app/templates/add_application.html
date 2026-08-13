@@ -66,6 +66,9 @@
       <label class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">
         {% if editing_app and editing_app.custom_logo_filename %}Replace Logo{% else %}Upload Logo{% endif %}
       </label>
+      {% if form.get('pending_logo_token') %}
+      <input type="hidden" name="pending_logo_token" value="{{ form.get('pending_logo_token') }}">
+      {% endif %}
       <div class="flex items-center gap-3">
         <label for="logo_file"
                class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-puma-primary-light dark:bg-puma-primary/20 text-puma-primary text-sm font-medium cursor-pointer hover:bg-puma-primary/10 dark:hover:bg-puma-primary/30 transition-colors shrink-0">
@@ -73,8 +76,10 @@
           Choose File
         </label>
         <input type="file" id="logo_file" name="logo_file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
-               class="sr-only" onchange="document.getElementById('logo_file_name').textContent = this.files.length ? this.files[0].name : 'No file chosen';">
-        <span id="logo_file_name" class="text-sm text-gray-500 dark:text-gray-400 truncate">No file chosen</span>
+               class="sr-only" onchange="document.getElementById('logo_file_name').textContent = this.files.length ? this.files[0].name : 'No file chosen'; document.getElementById('logo_file_name').classList.remove('text-puma-primary');">
+        <span id="logo_file_name" class="text-sm truncate {% if form.get('pending_logo_token') %}text-puma-primary{% else %}text-gray-500 dark:text-gray-400{% endif %}">
+          {% if form.get('pending_logo_token') %}✓ Image selected — will be used unless you choose a different one{% else %}No file chosen{% endif %}
+        </span>
       </div>
       <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">
         PNG, JPEG, GIF, WebP, or SVG. Max 2MB. Leave blank to keep the current icon{% if not editing_app %}, which defaults to a colored initial{% endif %}.
