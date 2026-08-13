@@ -6,87 +6,332 @@
   <title>Puma Run - PUMA</title>
   <link rel="icon" type="image/png" href="/static/img/favicon.png">
   <link rel="stylesheet" href="/static/css/output.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <style>
+    .pixel-font { font-family: 'Press Start 2P', ui-monospace, monospace; }
+    .pixelated { image-rendering: pixelated; image-rendering: crisp-edges; }
+  </style>
 </head>
 <body class="bg-puma-bg min-h-screen flex flex-col items-center justify-center p-6">
 
-  <div class="max-w-3xl w-full">
+  <div class="max-w-4xl w-full">
     <a href="/about" class="text-sm text-gray-400 hover:text-puma-primary">&larr; Back to About</a>
 
-    <div class="bg-white rounded-xl border border-gray-100 p-6 mt-4 text-center">
-      <h1 class="text-3xl font-bold text-puma-primary mb-1">Puma Run</h1>
-      <p class="text-base text-gray-400 mb-4">Space, click, or tap to jump. Don't clip a paw print.</p>
-
-      <div class="flex items-center justify-center gap-8 mb-3 text-xl font-medium">
-        <span class="text-gray-600">Score: <span id="score" class="text-puma-primary font-bold text-2xl">0</span></span>
-        <span class="text-gray-600">Best: <span id="best-score" class="text-puma-primary font-bold text-2xl">0</span></span>
+    <!-- Arcade screen -->
+    <div class="rounded-2xl mt-4 p-5" style="background:#ffe1ec; border:2px solid #f6a9c9;">
+      <div class="flex items-start justify-between mb-3 pixel-font" style="color:#c2246a;">
+        <div id="game-message" class="text-[10px] sm:text-xs leading-relaxed">Press SPACE to jump</div>
+        <div class="text-right text-[10px] sm:text-xs leading-relaxed">
+          <span style="color:#e07aa8;">HI <span id="best-score">000000</span></span>
+          <span style="color:#4a0d29; margin-left:10px;" id="score">000000</span>
+        </div>
       </div>
 
-      <canvas id="game-canvas" width="760" height="260"
-              class="w-full border border-gray-100 rounded-lg cursor-pointer"
-              style="background:#fdf1f5; max-width:100%; touch-action:none;"></canvas>
+      <canvas id="game-canvas" width="1400" height="480"
+              class="w-full rounded-lg cursor-pointer pixelated"
+              style="background:#ffe6f0; max-width:100%; touch-action:none;"></canvas>
+    </div>
 
-      <p id="game-message" class="text-lg text-gray-500 mt-3">Press Space, click, or tap the canvas to start</p>
+    <!-- Sprite / obstacle gallery -->
+    <div class="rounded-xl border border-gray-100 bg-white mt-4 p-6 grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-0 md:divide-x md:divide-dashed md:divide-gray-200">
+      <div class="md:pr-6">
+        <div class="text-center text-sm font-bold pixel-font mb-4" style="color:#c2246a;">
+          🐾&nbsp; PUMA SPRITES &nbsp;🐾
+        </div>
+        <div class="grid grid-cols-4 gap-3" id="sprite-gallery"></div>
+      </div>
+      <div class="md:pl-6">
+        <div class="text-center text-sm font-bold pixel-font mb-4" style="color:#c2246a;">
+          🐾&nbsp; OBSTACLES &nbsp;🐾
+        </div>
+        <div class="grid grid-cols-4 gap-3" id="obstacle-gallery"></div>
+      </div>
+    </div>
+
+    <!-- Controls legend -->
+    <div class="rounded-xl border border-gray-100 bg-white mt-4 p-5 flex flex-col sm:flex-row items-center justify-around gap-6 text-center sm:text-left">
+      <div class="flex items-center gap-3">
+        <div class="pixel-font text-xs px-4 py-3 rounded-lg" style="background:#fdf1f5; border:2px solid #e82a78; color:#e82a78;">SPACE</div>
+        <div>
+          <div class="font-semibold text-gray-700 text-sm">JUMP</div>
+          <div class="text-xs text-gray-400">Press SPACE to jump<br>over obstacles</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="pixel-font text-xs px-4 py-3 rounded-lg" style="background:#fdf1f5; border:2px solid #e82a78; color:#e82a78;">&uarr;</div>
+        <div>
+          <div class="font-semibold text-gray-700 text-sm">MOBILE / TOUCH</div>
+          <div class="text-xs text-gray-400">Tap the screen<br>to jump</div>
+        </div>
+      </div>
     </div>
   </div>
 
 <script>
 (function () {
+  // ------------------------------------------------------------------
+  // Pixel-art drawing helpers
+  // ------------------------------------------------------------------
+  var PALETTE = {
+    B: '#ee5b99', // body
+    D: '#b81d5c', // dark outline / shadow
+    L: '#f9a8c9', // light belly
+    E: '#3d0a1f', // eye
+    O: '#e0468e'  // secondary/outline for obstacles
+  };
+
+  // Draws a bitmap (array of equal-length strings, '.' = transparent)
+  // at (x, y) using `px` device pixels per bitmap cell.
+  function drawBitmap(ctx, bitmap, x, y, px) {
+    for (var row = 0; row < bitmap.length; row++) {
+      var line = bitmap[row];
+      for (var col = 0; col < line.length; col++) {
+        var ch = line[col];
+        if (ch === '.') continue;
+        ctx.fillStyle = PALETTE[ch] || '#000';
+        ctx.fillRect(Math.round(x + col * px), Math.round(y + row * px), px, px);
+      }
+    }
+  }
+
+  function bitmapSize(bitmap, px) {
+    return { w: bitmap[0].length * px, h: bitmap.length * px };
+  }
+
+  // ------------------------------------------------------------------
+  // Sprite bitmaps - 22 x 13 grid, puma facing right
+  // ------------------------------------------------------------------
+  var RUN1 = [
+    "..........................",
+    ".DDD..................DD..",
+    ".DD.................DDBD..",
+    "DBD................DBBBD..",
+    "DBD...............DBBEBBD.",
+    "DBBD...DDDDDDDDDD.DBBBBBBD",
+    ".DBBDDDBBBBBBBBBBDBBBBBBD.",
+    ".DBBBBBBBBBBBBBBBBBBBBBD..",
+    "..DDDDDBBBBBBBBBBBBBDDD...",
+    ".......DLLLDDDDDLLLD......",
+    ".......DLDD.....DDLD......",
+    ".......DD.D.....D.DD......",
+    ".......DD.........DD......",
+    ".......D...........D......"
+  ];
+  var RUN2 = [
+    "..........................",
+    ".DDD..................DD..",
+    ".DD.................DDBD..",
+    "DBD................DBBBD..",
+    "DBD...............DBBEBBD.",
+    "DBBD...DDDDDDDDDD.DBBBBBBD",
+    ".DBBDDDBBBBBBBBBBDBBBBBBD.",
+    ".DBBBBBBBBBBBBBBBBBBBBBD..",
+    "..DDDDDBBBBBBBBBBBBBDDD...",
+    ".......DLLLDDDDDLLLD......",
+    ".......DDLD.....DLDD......",
+    ".......D.DD.....DD.D......",
+    ".........DD.....DD........",
+    "..........D.....D........."
+  ];
+  var JUMP = [
+    "..........................",
+    ".DDD..................DD..",
+    ".DD.................DDBD..",
+    "DBD................DBBBD..",
+    "DBD...............DBBEBBD.",
+    "DBBD...DDDDDDDDDD.DBBBBBBD",
+    ".DBBDDDBBBBBBBBBBDBBBBBBD.",
+    ".DBBBBBBBBBBBBBBBBBBBBBD..",
+    "..DDDDDBBBBBBBBBBBBBDDD...",
+    ".......DLDLDDDDDLDLD......",
+    ".......DD.D.....D.DD......",
+    "..........................",
+    "..........................",
+    ".........................."
+  ];
+  var GAMEOVER = [
+    "..........................",
+    "..........................",
+    "..........................",
+    "..........................",
+    "..........................",
+    "..........................",
+    "..........................",
+    "......................DD..",
+    "....................DDBBD.",
+    "DD...DDDDDDDDDDDDDD.ELLLD.",
+    "DLDDDLLLLLLLLLLLLLLDLLLLD.",
+    ".DDDDLLLLLLLLLLLLLLDDLLLD.",
+    ".....DDDDDDDDDDDDDD..DDD..",
+    ".........................."
+  ];
+  var CACTUS = [
+    "............",
+    "....DDDD....",
+    ".DD.DBBD....",
+    ".DD.DBBD....",
+    ".DD.DBBBDDD.",
+    ".DBDBBBBBBD.",
+    ".DBBBBBBDBD.",
+    ".DDDBBBD.DD.",
+    "....DBBD.DD.",
+    "....DBBD....",
+    "....DBBD....",
+    "....DBBD....",
+    "....DBBD....",
+    "....DDDD...."
+  ];
+  var ROCK = [
+    "............",
+    "......DDDD..",
+    ".....DBBBBD.",
+    "..DDDBBBBBBD",
+    ".DBBBBBBBBBD",
+    "DBBBBBBBBBBD",
+    "DBBBBBBBBBBD",
+    "DDBBBBBBBBD.",
+    "..DDDDDDDD.."
+  ];
+  var BUSH = [
+    "......DDD...",
+    ".....DBBD...",
+    ".DDDDBBBBD..",
+    "DBBBBBBBBBD.",
+    "DBBBBBBBBBBD",
+    "DBBBBBBBBBBD",
+    "DBBBBBBBBBBD",
+    ".DDDDDDDDDD."
+  ];
+  var BIRD = [
+    ".DD............DD.",
+    "..DD..........DD..",
+    "...DDD......DDD...",
+    ".....DD....DBD....",
+    "......DDDDDBBD....",
+    "......DBBBBBD.....",
+    ".....DBDDDDDD.....",
+    "....DDD.....DD....",
+    "..DDD........DDD..",
+    ".DD............DD."
+  ];
+
+  var GALLERY_ITEMS_SPRITES = [
+    { bitmap: RUN1, label: 'RUN 1' },
+    { bitmap: RUN2, label: 'RUN 2' },
+    { bitmap: JUMP, label: 'JUMP' },
+    { bitmap: GAMEOVER, label: 'GAME OVER' }
+  ];
+  var GALLERY_ITEMS_OBSTACLES = [
+    { bitmap: CACTUS, label: 'CACTUS' },
+    { bitmap: ROCK, label: 'ROCK' },
+    { bitmap: BUSH, label: 'BUSH' },
+    { bitmap: BIRD, label: 'BIRD' }
+  ];
+
+  function buildGallery(containerId, items) {
+    var container = document.getElementById(containerId);
+    items.forEach(function (item) {
+      var cell = document.createElement('div');
+      cell.className = 'flex flex-col items-center gap-2';
+
+      var label = document.createElement('div');
+      label.className = 'pixel-font text-[8px] text-gray-400';
+      label.textContent = item.label;
+
+      var cnv = document.createElement('canvas');
+      var px = 6;
+      var size = bitmapSize(item.bitmap, px);
+      cnv.width = size.w;
+      cnv.height = size.h;
+      cnv.style.width = '100%';
+      cnv.style.maxWidth = '76px';
+      cnv.className = 'pixelated';
+      var cctx = cnv.getContext('2d');
+      cctx.imageSmoothingEnabled = false;
+      drawBitmap(cctx, item.bitmap, 0, 0, px);
+
+      cell.appendChild(label);
+      cell.appendChild(cnv);
+      container.appendChild(cell);
+    });
+  }
+  buildGallery('sprite-gallery', GALLERY_ITEMS_SPRITES);
+  buildGallery('obstacle-gallery', GALLERY_ITEMS_OBSTACLES);
+
+  // ------------------------------------------------------------------
+  // Game
+  // ------------------------------------------------------------------
   var canvas = document.getElementById('game-canvas');
   var ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
   var scoreEl = document.getElementById('score');
   var bestScoreEl = document.getElementById('best-score');
   var messageEl = document.getElementById('game-message');
 
-  var CSS_WIDTH = 760, CSS_HEIGHT = 260;
+  var CSS_WIDTH = 700, CSS_HEIGHT = 240;
   var DPR = window.devicePixelRatio || 1;
   canvas.width = CSS_WIDTH * DPR;
   canvas.height = CSS_HEIGHT * DPR;
   ctx.scale(DPR, DPR);
+  ctx.imageSmoothingEnabled = false;
 
-  var GROUND_Y = 210;
+  var GROUND_Y = 190;
   var GRAVITY = 0.7;
   var JUMP_VELOCITY = -12.5;
-  var CHAR_HEIGHT = 42;
-  var CHAR_ASPECT = 1220 / 496; // puma-character.png is a wide side-profile
-  var CHAR_WIDTH = CHAR_HEIGHT * CHAR_ASPECT;
-  var CHAR_X = 50;
+  var PX = 5.2; // pixel size for the running character
+  var CHAR_X = 40;
+  var CHAR_H = bitmapSize(RUN1, PX).h;
+  var CHAR_W = bitmapSize(RUN1, PX).w;
 
-  var PAW_ASPECT = 103 / 96; // paw-greeting.png
+  var OBSTACLE_PX = 4.4;
+  var OBSTACLE_TYPES = [
+    { bitmap: CACTUS, ground: true },
+    { bitmap: ROCK, ground: true },
+    { bitmap: BUSH, ground: true },
+    { bitmap: BIRD, ground: false, flyHeight: 70 }
+  ];
 
-  var PINK = '#e82a78';
-  var PINK_DARK = '#cc256a';
-  var PINK_LIGHT = '#fdf1f5';
-  var GRAY = '#6b7280';
-
-  var charImg = new Image();
-  var charLoaded = false;
-  charImg.onload = function () { charLoaded = true; };
-  charImg.src = '/static/img/puma-character.png';
-
-  var pawImg = new Image();
-  var pawLoaded = false;
-  pawImg.onload = function () { pawLoaded = true; };
-  pawImg.src = '/static/img/paw-greeting.png';
+  var TXT_MED = '#e07aa8';
+  var TXT_DARK = '#4a0d29';
 
   var STORAGE_KEY = 'puma-run-best-score';
   var bestScore = parseInt(localStorage.getItem(STORAGE_KEY) || '0', 10) || 0;
-  bestScoreEl.textContent = bestScore;
+  bestScoreEl.textContent = pad(bestScore);
+
+  function pad(n) {
+    return String(n).padStart(6, '0');
+  }
 
   var state = 'ready'; // 'ready' | 'running' | 'gameover'
   var charY, velocityY, isJumping;
   var speed, obstacles, distance, score, nextObstacleDistance, frame;
+  var clouds, mountains;
+
+  function initScenery() {
+    clouds = [];
+    for (var i = 0; i < 3; i++) {
+      clouds.push({ x: Math.random() * CSS_WIDTH, y: 20 + Math.random() * 45, scale: 0.7 + Math.random() * 0.6 });
+    }
+    mountains = [];
+    for (var j = 0; j < 5; j++) {
+      mountains.push({ x: j * 160 + Math.random() * 40, h: 30 + Math.random() * 30, w: 90 + Math.random() * 60 });
+    }
+  }
 
   function resetGame() {
-    charY = GROUND_Y - CHAR_HEIGHT;
+    charY = GROUND_Y - CHAR_H;
     velocityY = 0;
     isJumping = false;
-    speed = 6;
+    speed = 5.2;
     obstacles = [];
     distance = 0;
     score = 0;
     frame = 0;
     nextObstacleDistance = 220 + Math.random() * 150;
-    scoreEl.textContent = '0';
+    scoreEl.textContent = pad(0);
+    initScenery();
   }
 
   function jump() {
@@ -111,39 +356,36 @@
   function update() {
     frame++;
     distance += speed;
-    speed += 0.0025; // gradual difficulty ramp, matching the classic dino game
+    speed += 0.0025;
 
-    // physics
     velocityY += GRAVITY;
     charY += velocityY;
-    if (charY > GROUND_Y - CHAR_HEIGHT) {
-      charY = GROUND_Y - CHAR_HEIGHT;
+    if (charY > GROUND_Y - CHAR_H) {
+      charY = GROUND_Y - CHAR_H;
       velocityY = 0;
       isJumping = false;
     }
 
-    // spawn obstacles
     if (distance >= nextObstacleDistance) {
-      var size = 28 + Math.random() * 14;
-      obstacles.push({ x: CSS_WIDTH, size: size });
+      var type = OBSTACLE_TYPES[Math.floor(Math.random() * OBSTACLE_TYPES.length)];
+      var size = bitmapSize(type.bitmap, OBSTACLE_PX);
+      obstacles.push({ x: CSS_WIDTH, type: type, w: size.w, h: size.h });
       nextObstacleDistance = distance + 200 + Math.random() * 220 - speed * 8;
     }
 
-    // move + cull obstacles, check collisions
     for (var i = obstacles.length - 1; i >= 0; i--) {
-      obstacles[i].x -= speed;
-      if (obstacles[i].x < -40) {
+      var ob = obstacles[i];
+      ob.x -= speed;
+      if (ob.x < -60) {
         obstacles.splice(i, 1);
         continue;
       }
-      var ob = obstacles[i];
-      var obY = GROUND_Y - ob.size * 0.7;
-      // slightly forgiving hitbox (like the real dino game), not the full sprite bounds
-      var pad = 8;
-      var charLeft = CHAR_X + pad, charRight = CHAR_X + CHAR_WIDTH - pad;
-      var charTop = charY + pad, charBottom = charY + CHAR_HEIGHT - pad;
-      var obLeft = ob.x, obRight = ob.x + ob.size * PAW_ASPECT;
-      var obTop = obY, obBottom = GROUND_Y;
+      var obY = ob.type.ground ? GROUND_Y - ob.h : GROUND_Y - ob.type.flyHeight;
+      var pad2 = 6;
+      var charLeft = CHAR_X + pad2, charRight = CHAR_X + CHAR_W - pad2;
+      var charTop = charY + pad2, charBottom = charY + CHAR_H - pad2;
+      var obLeft = ob.x + pad2, obRight = ob.x + ob.w - pad2;
+      var obTop = obY + pad2, obBottom = obY + ob.h - pad2;
       if (charRight > obLeft && charLeft < obRight && charBottom > obTop && charTop < obBottom) {
         gameOver();
         return;
@@ -151,7 +393,7 @@
     }
 
     score = Math.floor(distance / 10);
-    scoreEl.textContent = score;
+    scoreEl.textContent = pad(score);
   }
 
   function gameOver() {
@@ -159,42 +401,65 @@
     if (score > bestScore) {
       bestScore = score;
       localStorage.setItem(STORAGE_KEY, String(bestScore));
-      bestScoreEl.textContent = bestScore;
-      messageEl.textContent = 'New best! ' + score + ' - press Space to run again';
+      bestScoreEl.textContent = pad(bestScore);
+      messageEl.textContent = 'NEW BEST! PRESS SPACE';
     } else {
-      messageEl.textContent = 'Game over - ' + score + ' points. Press Space to try again';
+      messageEl.textContent = 'GAME OVER - PRESS SPACE';
     }
+  }
+
+  function drawCloud(x, y, scale) {
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = '#f7c9dc';
+    ctx.lineWidth = 1;
+    [[0, 0, 10], [10, -5, 8], [20, 0, 9], [8, 4, 9]].forEach(function (c) {
+      ctx.beginPath();
+      ctx.arc(x + c[0] * scale, y + c[1] * scale, c[2] * scale, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  function drawMountain(x, w, h) {
+    ctx.fillStyle = '#f8bcd6';
+    ctx.beginPath();
+    ctx.moveTo(x, GROUND_Y);
+    ctx.lineTo(x + w / 2, GROUND_Y - h);
+    ctx.lineTo(x + w, GROUND_Y);
+    ctx.closePath();
+    ctx.fill();
   }
 
   function draw() {
     ctx.clearRect(0, 0, CSS_WIDTH, CSS_HEIGHT);
 
-    // ground
-    ctx.strokeStyle = PINK;
+    // sky mountains
+    mountains.forEach(function (m) { drawMountain(m.x, m.w, m.h); });
+    // clouds
+    clouds.forEach(function (c) { drawCloud(c.x, c.y, c.scale); });
+
+    // ground line + dotted texture
+    ctx.strokeStyle = TXT_DARK;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(0, GROUND_Y);
     ctx.lineTo(CSS_WIDTH, GROUND_Y);
     ctx.stroke();
-
-    // character (the puma mascot, jumping)
-    if (charLoaded) {
-      ctx.drawImage(charImg, CHAR_X, charY, CHAR_WIDTH, CHAR_HEIGHT);
-    } else {
-      ctx.fillStyle = PINK;
-      ctx.fillRect(CHAR_X, charY, CHAR_WIDTH, CHAR_HEIGHT);
+    ctx.fillStyle = '#f2a0c4';
+    for (var gx = -((frame * (state === 'running' ? speed : 0)) % 18); gx < CSS_WIDTH; gx += 18) {
+      ctx.fillRect(gx, GROUND_Y + 6, 3, 3);
     }
 
-    // obstacles (the same paw prints used on the dashboard greeting)
+    // character
+    var pose;
+    if (state === 'gameover') pose = GAMEOVER;
+    else if (isJumping) pose = JUMP;
+    else pose = (Math.floor(frame / 6) % 2 === 0) ? RUN1 : RUN2;
+    drawBitmap(ctx, pose, CHAR_X, charY, PX);
+
+    // obstacles
     obstacles.forEach(function (ob) {
-      var w = ob.size * PAW_ASPECT, h = ob.size;
-      var y = GROUND_Y - h * 0.7;
-      if (pawLoaded) {
-        ctx.drawImage(pawImg, ob.x, y, w, h);
-      } else {
-        ctx.fillStyle = PINK;
-        ctx.fillRect(ob.x, y, w, h);
-      }
+      var obY = ob.type.ground ? GROUND_Y - ob.h : GROUND_Y - ob.type.flyHeight;
+      drawBitmap(ctx, ob.type.bitmap, ob.x, obY, OBSTACLE_PX);
     });
   }
 
@@ -204,14 +469,13 @@
       return;
     }
     update();
+    draw();
     if (state === 'running') {
-      draw();
       requestAnimationFrame(loop);
-    } else {
-      draw();
     }
   }
 
+  initScenery();
   resetGame();
   draw();
 
