@@ -132,10 +132,10 @@
     // one distant cloud to the right, and a pale low hill layer on the
     // left blending into a taller multi-peak range on the right.
     clouds = [
-      { sprite: SPRITES.cloud1, x: 70, y: 50, h: 20 },
-      { sprite: SPRITES.cloud2, x: 230, y: 25, h: 30 },
-      { sprite: SPRITES.cloud3, x: 400, y: 65, h: 17 },
-      { sprite: SPRITES.cloud4, x: 580, y: 40, h: 24 }
+      { sprite: SPRITES.cloud1, x: 118, y: 46, h: 19 },
+      { sprite: SPRITES.cloud2, x: 214, y: 22, h: 28 },
+      { sprite: SPRITES.cloud3, x: 314, y: 67, h: 16 },
+      { sprite: SPRITES.cloud4, x: 606, y: 44, h: 23 }
     ];
     clouds.forEach(function (c) { c.w = c.h * c.sprite.aspect; });
 
@@ -243,15 +243,14 @@
     mountains.forEach(function (m) {
       if (m.sprite.loaded) ctx.drawImage(m.sprite.img, m.x, GROUND_Y - m.h, m.w, m.h);
     });
-    // Clouds get smoothed/antialiased scaling for a crisper "HD" look,
-    // using the same source artwork - everything else (mountains, ground,
-    // character, obstacles) stays on nearest-neighbor pixel rendering.
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
+    // Runtime smoothing was making cloud edges look faded/hazy rather than
+    // crisp - the source art already has soft anti-aliased edges, and
+    // blurring it further on top just spreads that into a paler halo.
+    // Draw at the same nearest-neighbor setting as everything else and
+    // rely on the offline-cleaned source art for quality instead.
     clouds.forEach(function (c) {
       if (c.sprite.loaded) ctx.drawImage(c.sprite.img, c.x, c.y, c.w, c.h);
     });
-    ctx.imageSmoothingEnabled = false;
 
     ctx.strokeStyle = TXT_DARK;
     ctx.lineWidth = 2;
