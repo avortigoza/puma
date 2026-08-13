@@ -95,12 +95,17 @@
 
     <div>
       <label class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">Source Type *</label>
-      <select name="source_type" id="source_type" required
-              class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
-        {% for st in source_types %}
-        <option value="{{ st.key }}" {% if form.get('source_type') == st.key %}selected{% endif %}>{{ st.label }}</option>
-        {% endfor %}
-      </select>
+      <div class="relative">
+        <select name="source_type" id="source_type" required
+                class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30 appearance-none">
+          {% for st in source_types %}
+          <option value="{{ st.key }}" {% if form.get('source_type') == st.key %}selected{% endif %}>{{ st.label }}</option>
+          {% endfor %}
+        </select>
+        <div class="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-puma-primary">
+          {{ icon("chevron-down", "w-4 h-4") }}
+        </div>
+      </div>
     </div>
 
     {% for st in source_types %}
@@ -112,12 +117,17 @@
           {{ field.label }}{% if field.required %} *{% endif %}
         </label>
         {% if field.type == "select" %}
-        <select name="cfg__{{ st.key }}__{{ field.name }}"
-                class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
-          {% for choice in field.choices %}
-          <option value="{{ choice }}" {% if form.get('cfg__' ~ st.key ~ '__' ~ field.name) == choice %}selected{% endif %}>{{ choice }}</option>
-          {% endfor %}
-        </select>
+        <div class="relative">
+          <select name="cfg__{{ st.key }}__{{ field.name }}"
+                  class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30 appearance-none">
+            {% for choice in field.choices %}
+            <option value="{{ choice }}" {% if form.get('cfg__' ~ st.key ~ '__' ~ field.name) == choice %}selected{% endif %}>{{ choice }}</option>
+            {% endfor %}
+          </select>
+          <div class="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-puma-primary">
+            {{ icon("chevron-down", "w-4 h-4") }}
+          </div>
+        </div>
         {% else %}
         <input type="{{ field.type }}" name="cfg__{{ st.key }}__{{ field.name }}"
                value="{{ form.get('cfg__' ~ st.key ~ '__' ~ field.name, '') }}"
@@ -154,13 +164,18 @@
 
     <div>
       <label class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">Automatic Probe</label>
-      <select name="installed_probe" id="installed_probe"
-              class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
-        <option value="" {% if not form.get('installed_probe') %}selected{% endif %}>None — manual entry only</option>
-        {% for st in source_types %}
-        <option value="{{ st.key }}" {% if form.get('installed_probe') == st.key %}selected{% endif %}>{{ st.label }}</option>
-        {% endfor %}
-      </select>
+      <div class="relative">
+        <select name="installed_probe" id="installed_probe"
+                class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30 appearance-none">
+          <option value="" {% if not form.get('installed_probe') %}selected{% endif %}>None — manual entry only</option>
+          {% for st in source_types %}
+          <option value="{{ st.key }}" {% if form.get('installed_probe') == st.key %}selected{% endif %}>{{ st.label }}</option>
+          {% endfor %}
+        </select>
+        <div class="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-puma-primary">
+          {{ icon("chevron-down", "w-4 h-4") }}
+        </div>
+      </div>
     </div>
 
     {% for st in source_types %}
@@ -172,12 +187,17 @@
           {{ field.label }}{% if field.required %} *{% endif %}
         </label>
         {% if field.type == "select" %}
-        <select name="probe__{{ st.key }}__{{ field.name }}"
-                class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
-          {% for choice in field.choices %}
-          <option value="{{ choice }}" {% if form.get('probe__' ~ st.key ~ '__' ~ field.name) == choice %}selected{% endif %}>{{ choice }}</option>
-          {% endfor %}
-        </select>
+        <div class="relative">
+          <select name="probe__{{ st.key }}__{{ field.name }}"
+                  class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30 appearance-none">
+            {% for choice in field.choices %}
+            <option value="{{ choice }}" {% if form.get('probe__' ~ st.key ~ '__' ~ field.name) == choice %}selected{% endif %}>{{ choice }}</option>
+            {% endfor %}
+          </select>
+          <div class="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-puma-primary">
+            {{ icon("chevron-down", "w-4 h-4") }}
+          </div>
+        </div>
         {% else %}
         <input type="{{ field.type }}" name="probe__{{ st.key }}__{{ field.name }}"
                value="{{ form.get('probe__' ~ st.key ~ '__' ~ field.name, '') }}"
@@ -212,12 +232,17 @@
       </div>
       <div>
         <label class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">Check Interval</label>
-        <select name="check_interval_minutes"
-                class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
-          {% for minutes, label in [(60,"Every hour"),(180,"Every 3 hours"),(360,"Every 6 hours"),(720,"Every 12 hours"),(1440,"Daily")] %}
-          <option value="{{ minutes }}" {% if form.get('check_interval_minutes', '360')|int == minutes %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
+        <div class="relative">
+          <select name="check_interval_minutes"
+                  class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30 appearance-none">
+            {% for minutes, label in [(60,"Every hour"),(180,"Every 3 hours"),(360,"Every 6 hours"),(720,"Every 12 hours"),(1440,"Daily")] %}
+            <option value="{{ minutes }}" {% if form.get('check_interval_minutes', '360')|int == minutes %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <div class="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-puma-primary">
+            {{ icon("chevron-down", "w-4 h-4") }}
+          </div>
+        </div>
       </div>
     </div>
 
