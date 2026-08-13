@@ -87,9 +87,7 @@
     </div>
 
     {% if editing_app and editing_app.custom_logo_filename %}
-    <div class="flex items-center gap-2 rounded-lg border border-puma-primary/30 bg-puma-primary-light dark:bg-puma-primary/10 px-3 py-2.5">
-      {{ checkbox("remove_logo", "on", form.get('remove_logo') == 'on', "Remove custom logo (revert to the default initial badge)") }}
-    </div>
+    {{ checkbox("remove_logo", "on", form.get('remove_logo') == 'on', "Remove custom logo (revert to the default initial badge)") }}
     {% endif %}
   </div>
 
