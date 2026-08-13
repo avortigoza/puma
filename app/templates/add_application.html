@@ -66,8 +66,16 @@
       <label class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">
         {% if editing_app and editing_app.custom_logo_filename %}Replace Logo{% else %}Upload Logo{% endif %}
       </label>
-      <input type="file" name="logo_file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
-             class="w-full text-sm text-gray-600 dark:text-gray-300 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-puma-primary-light dark:file:bg-puma-primary/20 file:text-puma-primary file:font-medium file:text-sm file:cursor-pointer">
+      <div class="flex items-center gap-3">
+        <label for="logo_file"
+               class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-puma-primary-light dark:bg-puma-primary/20 text-puma-primary text-sm font-medium cursor-pointer hover:bg-puma-primary/10 dark:hover:bg-puma-primary/30 transition-colors shrink-0">
+          {{ icon("image", "w-4 h-4") }}
+          Choose File
+        </label>
+        <input type="file" id="logo_file" name="logo_file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
+               class="sr-only" onchange="document.getElementById('logo_file_name').textContent = this.files.length ? this.files[0].name : 'No file chosen';">
+        <span id="logo_file_name" class="text-sm text-gray-500 dark:text-gray-400 truncate">No file chosen</span>
+      </div>
       <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">
         PNG, JPEG, GIF, WebP, or SVG. Max 2MB. Leave blank to keep the current icon{% if not editing_app %}, which defaults to a colored initial{% endif %}.
       </p>
