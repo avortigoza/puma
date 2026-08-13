@@ -154,6 +154,15 @@
   var CHAR_H = 46;
   var CHAR_W = CHAR_H * SPRITES.puma.aspect;
 
+  // The game-over art is a lying-down pose that's much bulkier/wider than
+  // the running pose, so drawing it into the same CHAR_W x CHAR_H box (built
+  // for the slimmer running sprite's aspect ratio) squashes it and makes it
+  // read as noticeably bigger. Give it its own, smaller box at its own
+  // aspect ratio instead, sized to look like the same puma "scale" as the
+  // running sprite.
+  var GAMEOVER_H = 30;
+  var GAMEOVER_W = GAMEOVER_H * SPRITES.pumaGameOver.aspect;
+
   var OBSTACLE_TYPES = [
     // Sized to roughly match the reference sheet's proportions: cactus
     // and bird read as the tall/large silhouettes, rock and bush as the
@@ -324,7 +333,9 @@
       var sprite;
       if (state === 'gameover') {
         sprite = SPRITES.pumaGameOver.loaded ? SPRITES.pumaGameOver : puma;
-        ctx.drawImage(sprite.img, CHAR_X, charY, CHAR_W, CHAR_H);
+        // Bottom/left-align to the ground line, like the puma settling
+        // down, rather than reusing the running sprite's box.
+        ctx.drawImage(sprite.img, CHAR_X, GROUND_Y - GAMEOVER_H, GAMEOVER_W, GAMEOVER_H);
       } else if (isJumping) {
         sprite = SPRITES.pumaJump.loaded ? SPRITES.pumaJump : puma;
         ctx.drawImage(sprite.img, CHAR_X, charY, CHAR_W, CHAR_H);
