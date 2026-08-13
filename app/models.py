@@ -60,6 +60,8 @@ class MonitoredApp(SQLModel, table=True):
     slug: str = Field(index=True, unique=True)          # "moodle"
     category: Optional[str] = None                      # "LMS", "Wiki", "ITSM"...
     icon: Optional[str] = None                           # lucide icon name or initial
+    custom_logo_filename: Optional[str] = None           # uploaded logo, served via /app-logos/{filename};
+                                                          # falls back to the initial-letter badge when unset
     enabled: bool = True
     notes: Optional[str] = None
 

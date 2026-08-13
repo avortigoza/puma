@@ -8,12 +8,14 @@ Run (from inside app/, after activating the venv):
 from __future__ import annotations
 
 import asyncio
+import io
 import logging
 import os
 import platform
 import re
 import socket
 import sys
+import uuid
 import zlib
 from datetime import datetime, timezone
 from pathlib import Path
@@ -26,10 +28,11 @@ from zoneinfo import ZoneInfo
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from passlib.context import CryptContext
+from PIL import Image
 from sqlmodel import Session, SQLModel, create_engine, select, func
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -58,6 +61,16 @@ if not SECRET_KEY:
         "PUMA_SECRET_KEY is not set. Add it to /etc/puma/puma.env "
         "(generate one with: python3 -c \"import secrets; print(secrets.token_hex(32))\")"
     )
+
+# Uploaded app logos live under the same writable directory as the
+# database (systemd's ProtectSystem=strict only allows writes under
+# /var/lib/puma at runtime - the app's own static/ directory under
+# /var/www is read-only in production), served through a dedicated route
+# rather than the regular StaticFiles mount for that same reason.
+APP_LOGOS_DIR = Path(DB_PATH).parent / "app_logos"
+APP_LOGOS_DIR.mkdir(parents=True, exist_ok=True)
+MAX_LOGO_SIZE_BYTES = 2 * 1024 * 1024  # 2MB
+ALLOWED_LOGO_CONTENT_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml"}
 
 # Everything is stored/computed in UTC internally (datetime.now(timezone.utc)
 # throughout). This is only for *display* - converting absolute timestamps
@@ -226,6 +239,69 @@ def safe_redirect_target(next_value: Optional[str]) -> str:
     if next_value in SAFE_REDIRECT_PATHS:
         return next_value
     return "/"
+
+
+_LOGO_EXT_BY_CONTENT_TYPE = {
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/gif": ".gif",
+    "image/webp": ".webp",
+    "image/svg+xml": ".svg",
+}
+
+
+def save_uploaded_logo(upload, app_slug: str) -> str:
+    """Validates an uploaded app-logo file and saves it under
+    APP_LOGOS_DIR with a safe, collision-proof filename (never the
+    user-supplied one - avoids any path weirdness entirely, not just
+    sanitizing it). Returns the filename to store on the app. Raises
+    ValueError with a plain, user-facing message on any validation
+    failure - the caller turns that straight into a form error."""
+    content_type = (upload.content_type or "").lower()
+    if content_type not in _LOGO_EXT_BY_CONTENT_TYPE:
+        raise ValueError(
+            f"Unsupported image type ({content_type or 'unknown'}). "
+            "Use PNG, JPEG, GIF, WebP, or SVG."
+        )
+
+    contents = upload.file.read()
+    if not contents:
+        raise ValueError("The uploaded logo file is empty.")
+    if len(contents) > MAX_LOGO_SIZE_BYTES:
+        raise ValueError(
+            f"That logo is too large ({len(contents) // 1024}KB) - "
+            f"max size is {MAX_LOGO_SIZE_BYTES // 1024}KB."
+        )
+
+    # Actually verify it's a genuine image rather than trusting the
+    # content-type header, which the browser sets client-side and a
+    # crafted request could spoof. PIL can't parse SVG (it's XML, not a
+    # raster format), so that one's skipped here - the content-type
+    # check above and the size cap are still real limits for SVGs.
+    if content_type != "image/svg+xml":
+        try:
+            img = Image.open(io.BytesIO(contents))
+            img.verify()
+        except Exception:
+            raise ValueError("That file doesn't appear to be a valid image.")
+
+    safe_ext = _LOGO_EXT_BY_CONTENT_TYPE[content_type]
+    safe_filename = f"{app_slug}-{uuid.uuid4().hex[:8]}{safe_ext}"
+    (APP_LOGOS_DIR / safe_filename).write_bytes(contents)
+    return safe_filename
+
+
+def delete_logo_file(filename: Optional[str]) -> None:
+    """Best-effort cleanup - a failure here shouldn't block the actual
+    request (a logo replace/removal/app delete) from completing."""
+    if not filename:
+        return
+    try:
+        path = APP_LOGOS_DIR / filename
+        if path.is_file():
+            path.unlink()
+    except OSError:
+        pass
 
 
 def slugify(value: str) -> str:
@@ -531,6 +607,20 @@ def app_to_form_dict(app_row: MonitoredApp) -> dict:
     return form
 
 
+@app.get("/app-logos/{filename}")
+def serve_app_logo(filename: str, user: User = Depends(require_login)):
+    # Resolve fully and confirm the result is still inside APP_LOGOS_DIR
+    # before serving anything - blocks any "../../etc/passwd"-style
+    # traversal attempt regardless of what filename gets passed in.
+    requested = (APP_LOGOS_DIR / filename).resolve()
+    logos_root = APP_LOGOS_DIR.resolve()
+    if requested != logos_root and logos_root not in requested.parents:
+        raise HTTPException(status_code=404, detail="Logo not found")
+    if not requested.is_file():
+        raise HTTPException(status_code=404, detail="Logo not found")
+    return FileResponse(requested)
+
+
 @app.get("/applications/new", response_class=HTMLResponse)
 def new_application_form(request: Request, user: User = Depends(require_admin)):
     return render(
@@ -645,6 +735,8 @@ def app_to_form_dict(app_row: MonitoredApp) -> dict:
 async def create_application(request: Request, user: User = Depends(require_admin)):
     form = await request.form()
     fields, errors = parse_app_form(form)
+    logo_upload = form.get("logo_file")
+    has_logo_upload = bool(logo_upload is not None and getattr(logo_upload, "filename", ""))
 
     with Session(engine) as session:
         if fields["name"] and not errors:
@@ -676,7 +768,25 @@ async def create_application(request: Request, user: User = Depends(require_admi
             slug = f"{base_slug}-{i}"
             i += 1
 
-        row = MonitoredApp(slug=slug, **fields)
+        saved_logo_filename = None
+        if has_logo_upload:
+            try:
+                saved_logo_filename = save_uploaded_logo(logo_upload, slug)
+            except ValueError as e:
+                return render(
+                    request,
+                    "add_application.html",
+                    {
+                        "user": user,
+                        "source_types": adapters.catalogue(),
+                        "error": str(e),
+                        "form": dict(form),
+                        "editing_app": None,
+                    },
+                    status_code=400,
+                )
+
+        row = MonitoredApp(slug=slug, custom_logo_filename=saved_logo_filename, **fields)
         session.add(row)
         session.commit()
 
@@ -708,6 +818,9 @@ def edit_application_form(app_id: int, request: Request, user: User = Depends(re
 async def update_application(app_id: int, request: Request, user: User = Depends(require_admin)):
     form = await request.form()
     fields, errors = parse_app_form(form)
+    logo_upload = form.get("logo_file")
+    has_logo_upload = bool(logo_upload is not None and getattr(logo_upload, "filename", ""))
+    remove_logo = form.get("remove_logo") == "on"
 
     with Session(engine) as session:
         app_row = session.get(MonitoredApp, app_id)
@@ -739,6 +852,30 @@ async def update_application(app_id: int, request: Request, user: User = Depends
                 status_code=400,
             )
 
+        old_logo_filename = app_row.custom_logo_filename
+        if has_logo_upload:
+            try:
+                fields["custom_logo_filename"] = save_uploaded_logo(logo_upload, app_row.slug)
+            except ValueError as e:
+                return render(
+                    request,
+                    "add_application.html",
+                    {
+                        "user": user,
+                        "source_types": adapters.catalogue(),
+                        "error": str(e),
+                        "form": dict(form),
+                        "editing_app": app_row,
+                    },
+                    status_code=400,
+                )
+            delete_logo_file(old_logo_filename)
+        elif remove_logo:
+            fields["custom_logo_filename"] = None
+            delete_logo_file(old_logo_filename)
+        # else: no upload and not removing - custom_logo_filename simply
+        # isn't in `fields`, so the setattr loop below leaves it untouched.
+
         for key, value in fields.items():
             setattr(app_row, key, value)
         app_row.updated_at = datetime.now(timezone.utc)
@@ -757,6 +894,7 @@ def delete_application(
     with Session(engine) as session:
         app_row = session.get(MonitoredApp, app_id)
         if app_row:
+            delete_logo_file(app_row.custom_logo_filename)
             for obs in session.exec(
                 select(ReleaseObservation).where(ReleaseObservation.app_id == app_id)
             ).all():
