@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Puma Run - PUMA</title>
+  <link rel="icon" type="image/png" href="/static/img/favicon.png">
+  <link rel="stylesheet" href="/static/css/output.css">
+</head>
+<body class="bg-puma-bg min-h-screen flex flex-col items-center justify-center p-6">
+
+  <div class="max-w-3xl w-full">
+    <a href="/about" class="text-sm text-gray-400 hover:text-puma-primary">&larr; Back to About</a>
+
+    <div class="bg-white rounded-xl border border-gray-100 p-6 mt-4 text-center">
+      <h1 class="text-xl font-bold text-puma-primary mb-1">Puma Run</h1>
+      <p class="text-xs text-gray-400 mb-4">Space, click, or tap to jump. Don't clip a paw print.</p>
+
+      <div class="flex items-center justify-center gap-6 mb-3 text-sm font-medium">
+        <span class="text-gray-600">Score: <span id="score" class="text-puma-primary font-bold">0</span></span>
+        <span class="text-gray-600">Best: <span id="best-score" class="text-puma-primary font-bold">0</span></span>
+      </div>
+
+      <canvas id="game-canvas" width="760" height="260"
+              class="w-full border border-gray-100 rounded-lg cursor-pointer"
+              style="background:#fdf1f5; max-width:100%; touch-action:none;"></canvas>
+
+      <p id="game-message" class="text-sm text-gray-500 mt-3">Press Space, click, or tap the canvas to start</p>
+    </div>
+  </div>
+
+<script>
+(function () {
+  var canvas = document.getElementById('game-canvas');
+  var ctx = canvas.getContext('2d');
+  var scoreEl = document.getElementById('score');
+  var bestScoreEl = document.getElementById('best-score');
+  var messageEl = document.getElementById('game-message');
+
+  var CSS_WIDTH = 760, CSS_HEIGHT = 260;
+  var DPR = window.devicePixelRatio || 1;
+  canvas.width = CSS_WIDTH * DPR;
+  canvas.height = CSS_HEIGHT * DPR;
+  ctx.scale(DPR, DPR);
+
+  var GROUND_Y = 210;
+  var GRAVITY = 0.7;
+  var JUMP_VELOCITY = -12.5;
+  var CHAR_SIZE = 40;
+  var CHAR_X = 50;
+
+  var PINK = '#e82a78';
+  var PINK_DARK = '#cc256a';
+  var PINK_LIGHT = '#fdf1f5';
+  var GRAY = '#6b7280';
+
+  var logoImg = new Image();
+  var logoLoaded = false;
+  logoImg.onload = function () { logoLoaded = true; };
+  logoImg.src = '/static/img/favicon.png';
+
+  var STORAGE_KEY = 'puma-run-best-score';
+  var bestScore = parseInt(localStorage.getItem(STORAGE_KEY) || '0', 10) || 0;
+  bestScoreEl.textContent = bestScore;
+
+  var state = 'ready'; // 'ready' | 'running' | 'gameover'
+  var charY, velocityY, isJumping;
+  var speed, obstacles, distance, score, nextObstacleDistance, frame;
+
+  function resetGame() {
+    charY = GROUND_Y - CHAR_SIZE;
+    velocityY = 0;
+    isJumping = false;
+    speed = 6;
+    obstacles = [];
+    distance = 0;
+    score = 0;
+    frame = 0;
+    nextObstacleDistance = 220 + Math.random() * 150;
+    scoreEl.textContent = '0';
+  }
+
+  function jump() {
+    if (state === 'ready') {
+      state = 'running';
+      messageEl.textContent = '';
+      resetGame();
+      requestAnimationFrame(loop);
+      return;
+    }
+    if (state === 'gameover') {
+      state = 'ready';
+      jump();
+      return;
+    }
+    if (!isJumping) {
+      velocityY = JUMP_VELOCITY;
+      isJumping = true;
+    }
+  }
+
+  function drawPawObstacle(x, y, size) {
+    ctx.fillStyle = PINK;
+    // main pad
+    ctx.beginPath();
+    ctx.ellipse(x + size * 0.5, y + size * 0.65, size * 0.42, size * 0.32, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // toes
+    var toeR = size * 0.15;
+    var toeY = y + size * 0.22;
+    [0.18, 0.4, 0.62, 0.84].forEach(function (fx, i) {
+      ctx.beginPath();
+      ctx.ellipse(x + size * fx, toeY + (i === 0 || i === 3 ? size * 0.12 : 0), toeR, toeR * 1.15, 0, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  function update() {
+    frame++;
+    distance += speed;
+    speed += 0.0025; // gradual difficulty ramp, matching the classic dino game
+
+    // physics
+    velocityY += GRAVITY;
+    charY += velocityY;
+    if (charY > GROUND_Y - CHAR_SIZE) {
+      charY = GROUND_Y - CHAR_SIZE;
+      velocityY = 0;
+      isJumping = false;
+    }
+
+    // spawn obstacles
+    if (distance >= nextObstacleDistance) {
+      var size = 28 + Math.random() * 14;
+      obstacles.push({ x: CSS_WIDTH, size: size });
+      nextObstacleDistance = distance + 200 + Math.random() * 220 - speed * 8;
+    }
+
+    // move + cull obstacles, check collisions
+    for (var i = obstacles.length - 1; i >= 0; i--) {
+      obstacles[i].x -= speed;
+      if (obstacles[i].x < -40) {
+        obstacles.splice(i, 1);
+        continue;
+      }
+      var ob = obstacles[i];
+      var obY = GROUND_Y - ob.size * 0.7;
+      // slightly forgiving hitbox (like the real dino game), not the full sprite bounds
+      var pad = 8;
+      var charLeft = CHAR_X + pad, charRight = CHAR_X + CHAR_SIZE - pad;
+      var charTop = charY + pad, charBottom = charY + CHAR_SIZE - pad;
+      var obLeft = ob.x, obRight = ob.x + ob.size;
+      var obTop = obY, obBottom = GROUND_Y;
+      if (charRight > obLeft && charLeft < obRight && charBottom > obTop && charTop < obBottom) {
+        gameOver();
+        return;
+      }
+    }
+
+    score = Math.floor(distance / 10);
+    scoreEl.textContent = score;
+  }
+
+  function gameOver() {
+    state = 'gameover';
+    if (score > bestScore) {
+      bestScore = score;
+      localStorage.setItem(STORAGE_KEY, String(bestScore));
+      bestScoreEl.textContent = bestScore;
+      messageEl.textContent = 'New best! ' + score + ' - press Space to run again';
+    } else {
+      messageEl.textContent = 'Game over - ' + score + ' points. Press Space to try again';
+    }
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, CSS_WIDTH, CSS_HEIGHT);
+
+    // ground
+    ctx.strokeStyle = PINK;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, GROUND_Y);
+    ctx.lineTo(CSS_WIDTH, GROUND_Y);
+    ctx.stroke();
+
+    // character (the actual crest logo, jumping)
+    if (logoLoaded) {
+      ctx.drawImage(logoImg, CHAR_X, charY, CHAR_SIZE, CHAR_SIZE);
+    } else {
+      ctx.fillStyle = PINK;
+      ctx.fillRect(CHAR_X, charY, CHAR_SIZE, CHAR_SIZE);
+    }
+
+    // obstacles (paw prints)
+    obstacles.forEach(function (ob) {
+      drawPawObstacle(ob.x, GROUND_Y - ob.size * 0.7, ob.size);
+    });
+  }
+
+  function loop() {
+    if (state !== 'running') {
+      draw();
+      return;
+    }
+    update();
+    if (state === 'running') {
+      draw();
+      requestAnimationFrame(loop);
+    } else {
+      draw();
+    }
+  }
+
+  resetGame();
+  draw();
+
+  window.addEventListener('keydown', function (e) {
+    if (e.code === 'Space') {
+      e.preventDefault();
+      jump();
+    }
+  });
+  canvas.addEventListener('mousedown', jump);
+  canvas.addEventListener('touchstart', function (e) {
+    e.preventDefault();
+    jump();
+  }, { passive: false });
+})();
+</script>
+
+</body>
+</html>

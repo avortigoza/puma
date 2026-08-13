@@ -1581,6 +1581,11 @@ def about_page(request: Request, user: User = Depends(require_login)):
     return render(request, "about.html", {"user": user, "puma_version": "v1.0.0"})
 
 
+@app.get("/game", response_class=HTMLResponse)
+def game_page(request: Request, user: User = Depends(require_login)):
+    return render(request, "game.html", {"user": user})
+
+
 @app.post("/account/toggle-dark-mode")
 def toggle_dark_mode(
     next: Optional[str] = Form(default="/"),
