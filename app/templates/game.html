@@ -13,19 +13,19 @@
     <a href="/about" class="text-sm text-gray-400 hover:text-puma-primary">&larr; Back to About</a>
 
     <div class="bg-white rounded-xl border border-gray-100 p-6 mt-4 text-center">
-      <h1 class="text-xl font-bold text-puma-primary mb-1">Puma Run</h1>
-      <p class="text-xs text-gray-400 mb-4">Space, click, or tap to jump. Don't clip a paw print.</p>
+      <h1 class="text-3xl font-bold text-puma-primary mb-1">Puma Run</h1>
+      <p class="text-base text-gray-400 mb-4">Space, click, or tap to jump. Don't clip a paw print.</p>
 
-      <div class="flex items-center justify-center gap-6 mb-3 text-sm font-medium">
-        <span class="text-gray-600">Score: <span id="score" class="text-puma-primary font-bold">0</span></span>
-        <span class="text-gray-600">Best: <span id="best-score" class="text-puma-primary font-bold">0</span></span>
+      <div class="flex items-center justify-center gap-8 mb-3 text-xl font-medium">
+        <span class="text-gray-600">Score: <span id="score" class="text-puma-primary font-bold text-2xl">0</span></span>
+        <span class="text-gray-600">Best: <span id="best-score" class="text-puma-primary font-bold text-2xl">0</span></span>
       </div>
 
       <canvas id="game-canvas" width="760" height="260"
               class="w-full border border-gray-100 rounded-lg cursor-pointer"
               style="background:#fdf1f5; max-width:100%; touch-action:none;"></canvas>
 
-      <p id="game-message" class="text-sm text-gray-500 mt-3">Press Space, click, or tap the canvas to start</p>
+      <p id="game-message" class="text-lg text-gray-500 mt-3">Press Space, click, or tap the canvas to start</p>
     </div>
   </div>
 
@@ -46,18 +46,27 @@
   var GROUND_Y = 210;
   var GRAVITY = 0.7;
   var JUMP_VELOCITY = -12.5;
-  var CHAR_SIZE = 40;
+  var CHAR_HEIGHT = 42;
+  var CHAR_ASPECT = 1220 / 496; // puma-character.png is a wide side-profile
+  var CHAR_WIDTH = CHAR_HEIGHT * CHAR_ASPECT;
   var CHAR_X = 50;
+
+  var PAW_ASPECT = 103 / 96; // paw-greeting.png
 
   var PINK = '#e82a78';
   var PINK_DARK = '#cc256a';
   var PINK_LIGHT = '#fdf1f5';
   var GRAY = '#6b7280';
 
-  var logoImg = new Image();
-  var logoLoaded = false;
-  logoImg.onload = function () { logoLoaded = true; };
-  logoImg.src = '/static/img/favicon.png';
+  var charImg = new Image();
+  var charLoaded = false;
+  charImg.onload = function () { charLoaded = true; };
+  charImg.src = '/static/img/puma-character.png';
+
+  var pawImg = new Image();
+  var pawLoaded = false;
+  pawImg.onload = function () { pawLoaded = true; };
+  pawImg.src = '/static/img/paw-greeting.png';
 
   var STORAGE_KEY = 'puma-run-best-score';
   var bestScore = parseInt(localStorage.getItem(STORAGE_KEY) || '0', 10) || 0;
@@ -68,7 +77,7 @@
   var speed, obstacles, distance, score, nextObstacleDistance, frame;
 
   function resetGame() {
-    charY = GROUND_Y - CHAR_SIZE;
+    charY = GROUND_Y - CHAR_HEIGHT;
     velocityY = 0;
     isJumping = false;
     speed = 6;
@@ -99,22 +108,6 @@
     }
   }
 
-  function drawPawObstacle(x, y, size) {
-    ctx.fillStyle = PINK;
-    // main pad
-    ctx.beginPath();
-    ctx.ellipse(x + size * 0.5, y + size * 0.65, size * 0.42, size * 0.32, 0, 0, Math.PI * 2);
-    ctx.fill();
-    // toes
-    var toeR = size * 0.15;
-    var toeY = y + size * 0.22;
-    [0.18, 0.4, 0.62, 0.84].forEach(function (fx, i) {
-      ctx.beginPath();
-      ctx.ellipse(x + size * fx, toeY + (i === 0 || i === 3 ? size * 0.12 : 0), toeR, toeR * 1.15, 0, 0, Math.PI * 2);
-      ctx.fill();
-    });
-  }
-
   function update() {
     frame++;
     distance += speed;
@@ -123,8 +116,8 @@
     // physics
     velocityY += GRAVITY;
     charY += velocityY;
-    if (charY > GROUND_Y - CHAR_SIZE) {
-      charY = GROUND_Y - CHAR_SIZE;
+    if (charY > GROUND_Y - CHAR_HEIGHT) {
+      charY = GROUND_Y - CHAR_HEIGHT;
       velocityY = 0;
       isJumping = false;
     }
@@ -147,9 +140,9 @@
       var obY = GROUND_Y - ob.size * 0.7;
       // slightly forgiving hitbox (like the real dino game), not the full sprite bounds
       var pad = 8;
-      var charLeft = CHAR_X + pad, charRight = CHAR_X + CHAR_SIZE - pad;
-      var charTop = charY + pad, charBottom = charY + CHAR_SIZE - pad;
-      var obLeft = ob.x, obRight = ob.x + ob.size;
+      var charLeft = CHAR_X + pad, charRight = CHAR_X + CHAR_WIDTH - pad;
+      var charTop = charY + pad, charBottom = charY + CHAR_HEIGHT - pad;
+      var obLeft = ob.x, obRight = ob.x + ob.size * PAW_ASPECT;
       var obTop = obY, obBottom = GROUND_Y;
       if (charRight > obLeft && charLeft < obRight && charBottom > obTop && charTop < obBottom) {
         gameOver();
@@ -184,17 +177,24 @@
     ctx.lineTo(CSS_WIDTH, GROUND_Y);
     ctx.stroke();
 
-    // character (the actual crest logo, jumping)
-    if (logoLoaded) {
-      ctx.drawImage(logoImg, CHAR_X, charY, CHAR_SIZE, CHAR_SIZE);
+    // character (the puma mascot, jumping)
+    if (charLoaded) {
+      ctx.drawImage(charImg, CHAR_X, charY, CHAR_WIDTH, CHAR_HEIGHT);
     } else {
       ctx.fillStyle = PINK;
-      ctx.fillRect(CHAR_X, charY, CHAR_SIZE, CHAR_SIZE);
+      ctx.fillRect(CHAR_X, charY, CHAR_WIDTH, CHAR_HEIGHT);
     }
 
-    // obstacles (paw prints)
+    // obstacles (the same paw prints used on the dashboard greeting)
     obstacles.forEach(function (ob) {
-      drawPawObstacle(ob.x, GROUND_Y - ob.size * 0.7, ob.size);
+      var w = ob.size * PAW_ASPECT, h = ob.size;
+      var y = GROUND_Y - h * 0.7;
+      if (pawLoaded) {
+        ctx.drawImage(pawImg, ob.x, y, w, h);
+      } else {
+        ctx.fillStyle = PINK;
+        ctx.fillRect(ob.x, y, w, h);
+      }
     });
   }
 
