@@ -76,11 +76,14 @@
   // bitmap-drawn placeholders.
   // ------------------------------------------------------------------
   var SPRITES = {
-    puma: { src: '/static/img/game/puma-run.png', aspect: 202 / 114 },
-    cactus: { src: '/static/img/game/cactus.png', aspect: 110 / 141 },
-    rock: { src: '/static/img/game/rock.png', aspect: 95 / 73 },
-    bush: { src: '/static/img/game/bush.png', aspect: 95 / 72 },
-    bird: { src: '/static/img/game/bird.png', aspect: 141 / 123 }
+    puma: { src: '/static/img/game/puma-run.png', aspect: 177 / 103 },
+    pumaRun2: { src: '/static/img/game/puma-run2.png', aspect: 182 / 110 },
+    pumaJump: { src: '/static/img/game/puma-jump.png', aspect: 185 / 110 },
+    pumaGameOver: { src: '/static/img/game/puma-gameover.png', aspect: 268 / 110 },
+    cactus: { src: '/static/img/game/cactus.png', aspect: 83 / 110 },
+    rock: { src: '/static/img/game/rock.png', aspect: 91 / 57 },
+    bush: { src: '/static/img/game/bush.png', aspect: 84 / 57 },
+    bird: { src: '/static/img/game/bird.png', aspect: 107 / 91 }
   };
   var loadedCount = 0;
   var totalSprites = Object.keys(SPRITES).length;
@@ -151,12 +154,14 @@
   var CHAR_H = 46;
   var CHAR_W = CHAR_H * SPRITES.puma.aspect;
 
-  var OBSTACLE_H = 40;
   var OBSTACLE_TYPES = [
-    { sprite: SPRITES.cactus, ground: true },
-    { sprite: SPRITES.rock, ground: true },
-    { sprite: SPRITES.bush, ground: true },
-    { sprite: SPRITES.bird, ground: false, flyHeight: 75 }
+    // Sized to roughly match the reference sheet's proportions: cactus
+    // and bird read as the tall/large silhouettes, rock and bush as the
+    // smaller low ones.
+    { sprite: SPRITES.cactus, ground: true, h: 54 },
+    { sprite: SPRITES.rock, ground: true, h: 34 },
+    { sprite: SPRITES.bush, ground: true, h: 34 },
+    { sprite: SPRITES.bird, ground: false, h: 52, flyHeight: 100 }
   ];
 
   var TXT_DARK = '#4a0d29';
@@ -233,7 +238,7 @@
 
     if (distance >= nextObstacleDistance) {
       var type = OBSTACLE_TYPES[Math.floor(Math.random() * OBSTACLE_TYPES.length)];
-      var h = type.ground ? OBSTACLE_H : OBSTACLE_H * 0.9;
+      var h = type.h;
       var w = h * type.sprite.aspect;
       obstacles.push({ x: CSS_WIDTH, type: type, w: w, h: h });
       nextObstacleDistance = distance + 200 + Math.random() * 220 - speed * 8;
@@ -312,22 +317,22 @@
       ctx.fillRect(gx, GROUND_Y + 6, 3, 3);
     }
 
-    // character - single running-pose sprite; a light bob simulates a gait
-    // cycle, and it tips over on game over since no separate frames exist
+    // character - cycles between two running frames on the ground, a
+    // dedicated pose while airborne, and a dedicated pose on game over
     var puma = SPRITES.puma;
     if (puma.loaded) {
-      ctx.save();
+      var sprite;
       if (state === 'gameover') {
-        var cx = CHAR_X + CHAR_W / 2, cy = charY + CHAR_H;
-        ctx.translate(cx, cy);
-        ctx.rotate(-Math.PI / 2.1);
-        ctx.translate(-cx, -cy);
-        ctx.drawImage(puma.img, CHAR_X, charY, CHAR_W, CHAR_H);
+        sprite = SPRITES.pumaGameOver.loaded ? SPRITES.pumaGameOver : puma;
+        ctx.drawImage(sprite.img, CHAR_X, charY, CHAR_W, CHAR_H);
+      } else if (isJumping) {
+        sprite = SPRITES.pumaJump.loaded ? SPRITES.pumaJump : puma;
+        ctx.drawImage(sprite.img, CHAR_X, charY, CHAR_W, CHAR_H);
       } else {
-        var bob = (!isJumping && state === 'running') ? Math.sin(frame * 0.6) * 2 : 0;
-        ctx.drawImage(puma.img, CHAR_X, charY + bob, CHAR_W, CHAR_H);
+        sprite = (Math.floor(frame / 6) % 2 === 0 || !SPRITES.pumaRun2.loaded) ? puma : SPRITES.pumaRun2;
+        var bob = state === 'running' ? Math.sin(frame * 0.6) * 2 : 0;
+        ctx.drawImage(sprite.img, CHAR_X, charY + bob, CHAR_W, CHAR_H);
       }
-      ctx.restore();
     }
 
     // obstacles
