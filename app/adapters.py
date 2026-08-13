@@ -75,6 +75,11 @@ class SourceAdapter(ABC):
     label: ClassVar[str]
     fields: ClassVar[list[Field_]] = []
     default_pattern: ClassVar[Optional[str]] = None
+    # One-line, plain-English "when should I pick this one" shown in the
+    # Add Application GUI next to the source-type dropdown, so choosing an
+    # adapter (and knowing whether it even needs a regex) doesn't require
+    # reading adapters.py or asking someone who already knows the codebase.
+    hint: ClassVar[str] = ""
 
     def __init__(self, config: dict[str, Any], client: httpx.Client):
         self.config = config
@@ -116,6 +121,7 @@ class SourceAdapter(ABC):
             "key": cls.key,
             "label": cls.label,
             "default_pattern": cls.default_pattern,
+            "hint": cls.hint,
             "fields": [f.__dict__ for f in cls.fields],
         }
 
@@ -130,6 +136,8 @@ class GitHubReleases(SourceAdapter):
 
     key = "github_releases"
     label = "GitHub — releases"
+    hint = ("Try this first. No regex needed — works for any project that "
+            "cuts real GitHub Releases (most self-hosted OSS apps do).")
     fields = [
         Field_("repo", "Repository", placeholder="glpi-project/glpi",
                help="owner/name"),
@@ -171,6 +179,9 @@ class GitHubTags(SourceAdapter):
     key = "github_tags"
     label = "GitHub — tags"
     default_pattern = r"v?(\d+\.\d+(?:\.\d+)?)"
+    hint = ("For projects that tag releases but don't publish GitHub "
+            "Releases, e.g. moodle/moodle. A default regex is pre-filled "
+            "to pull the version number out of the tag name.")
     fields = [
         Field_("repo", "Repository", placeholder="moodle/moodle"),
         Field_("token", "API token", type="password", required=False),
@@ -202,6 +213,8 @@ class GitLabReleases(SourceAdapter):
 
     key = "gitlab_releases"
     label = "GitLab — releases"
+    hint = ("GitLab equivalent of GitHub Releases — for GitLab.com or a "
+            "self-hosted GitLab instance whose project publishes Releases.")
     fields = [
         Field_("base_url", "Instance URL", type="url",
                placeholder="https://gitlab.com"),
@@ -241,6 +254,9 @@ class AtomFeed(SourceAdapter):
 
     key = "atom_feed"
     label = "Atom / RSS feed"
+    hint = ("No auth, no rate limit. Good fallback when GitHub Releases "
+            "isn't the right fit — every GitHub repo also exposes "
+            "/releases.atom, and most other projects have a feed too.")
     fields = [
         Field_("url", "Feed URL", type="url",
                placeholder="https://github.com/xwiki/xwiki-platform/releases.atom"),
@@ -275,6 +291,10 @@ class LocalFileRegex(SourceAdapter):
 
     key = "local_file_regex"
     label = "Local file (regex)"
+    hint = ("For an app installed on this same server. Reads a version "
+            "straight off a file on disk (e.g. Moodle's version.php) — "
+            "no network call, most reliable option when it's available. "
+            "Needs a file path and a regex with one capture group.")
     fields = [
         Field_("path", "File path",
                placeholder="/var/www/moodle/public/version.php"),
@@ -317,6 +337,9 @@ class GitLocalTag(SourceAdapter):
 
     key = "git_local_tag"
     label = "Local git checkout"
+    hint = ("For an app deployed on this server as a plain `git clone` + "
+            "`git pull` (not Docker). Runs `git describe --tags` in that "
+            "folder to read the installed version.")
     fields = [
         Field_("path", "Repository path",
                placeholder="/var/www/shelf.nu",
@@ -371,6 +394,10 @@ class HttpHeader(SourceAdapter):
 
     key = "http_header"
     label = "HTTP response header"
+    hint = ("Reads the version straight off a response header the app "
+            "already sends (e.g. XWiki's XWiki-Version header). Check the "
+            "app's REST API docs for a version header before reaching for "
+            "JSON endpoint or Scrape page below.")
     fields = [
         Field_("url", "URL", type="url",
                placeholder="http://10.0.1.49:8888/rest/"),
@@ -404,6 +431,8 @@ class StanzaApi(SourceAdapter):
 
     key = "stanza_api"
     label = "Stanza (Telestream) API"
+    hint = ("Specific to Stanza (Telestream). Logs in with a username/"
+            "password, then reads /version.")
     fields = [
         Field_("base_url", "Stanza base URL", type="url",
                placeholder="http://10.0.1.214:7000"),
@@ -445,6 +474,8 @@ class JsonApi(SourceAdapter):
 
     key = "json_api"
     label = "JSON endpoint"
+    hint = ("Escape hatch for any endpoint that returns JSON. Give a "
+            "dotted path to the version field, e.g. releases.0.version.")
     fields = [
         Field_("url", "URL", type="url"),
         Field_("path", "Path to version", placeholder="releases.0.version"),
@@ -485,6 +516,8 @@ class GlpiRestApi(SourceAdapter):
 
     key = "glpi_rest_api"
     label = "GLPI REST API"
+    hint = ("GLPI-specific. Logs in via GLPI's initSession step, then "
+            "reads the version from getGlpiConfig.")
     fields = [
         Field_("base_url", "GLPI base URL", type="url",
                placeholder="http://10.0.0.161:8765"),
@@ -533,6 +566,9 @@ class HtmlRegex(SourceAdapter):
 
     key = "html_regex"
     label = "Scrape page with regex"
+    hint = ("Last resort — for a project that only announces new versions "
+            "on a web page (e.g. a download page). Brittle by nature: any "
+            "redesign of that page can break it. Try every other option first.")
     fields = [
         Field_("url", "Page URL", type="url"),
         Field_("pattern", "Regex (1 capture group)",

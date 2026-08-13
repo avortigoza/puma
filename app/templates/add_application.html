@@ -114,6 +114,11 @@
     {% for st in source_types %}
     <div class="source-fields space-y-4 {% if form.get('source_type', source_types[0].key) != st.key %}hidden{% endif %}"
          data-source-type="{{ st.key }}">
+      {% if st.hint %}
+      <p class="text-xs text-puma-primary bg-puma-primary/5 border border-puma-primary/15 rounded-lg px-3 py-2">
+        {{ st.hint }}
+      </p>
+      {% endif %}
       {% for field in st.fields %}
       <div>
         <label class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">
@@ -184,6 +189,11 @@
     {% for st in source_types %}
     <div class="probe-fields space-y-4 {% if form.get('installed_probe') != st.key %}hidden{% endif %}"
          data-probe-type="{{ st.key }}">
+      {% if st.hint %}
+      <p class="text-xs text-puma-primary bg-puma-primary/5 border border-puma-primary/15 rounded-lg px-3 py-2">
+        {{ st.hint }}
+      </p>
+      {% endif %}
       {% for field in st.fields %}
       <div>
         <label class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">
