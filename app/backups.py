@@ -414,6 +414,82 @@ class RunScript(BackupStrategy):
         return BackupResult(success=True, size_bytes=_dir_size(dest_dir))
 
 
+@register
+class SshFilesAndDbDump(BackupStrategy):
+    """Files on a *different* server than PUMA itself, reachable over
+    SSH - e.g. GLPI running on its own VM. Streams the remote path(s)
+    straight into a local tar.gz via `ssh ... tar czf -` (no separate
+    remote-to-local copy step, no scratch space needed on the remote
+    host). The database dump reuses the same local mysqldump/pg_dump
+    path as FileAndDbDump - that only works if the database itself is
+    reachable over the network from the PUMA host (common when both are
+    on the same private LAN); it is not tunnelled through the SSH
+    connection used for the files. Needs the puma service account to
+    have passwordless (key-based) SSH access to the remote host/user -
+    that's a prerequisite to set up on the servers themselves, the same
+    way DockerVolumesAndDbDump needs the puma account in the `docker`
+    group first."""
+
+    key = "ssh_files_and_db_dump"
+    label = "Remote (SSH) files + database dump"
+    hint = ("For an app hosted on a *different* server than PUMA, e.g. "
+            "GLPI on its own VM. Streams the listed remote path(s) into a "
+            "local tar.gz over SSH, and can optionally dump a MySQL/"
+            "MariaDB or PostgreSQL database too - but only if that "
+            "database is reachable directly over the network from the "
+            "PUMA server (the dump isn't tunnelled through SSH). Needs "
+            "the puma service account to already have passwordless "
+            "SSH key access to the remote host/user.")
+    fields = [
+        Field_("ssh_host", "SSH host", placeholder="10.0.0.161"),
+        Field_("ssh_user", "SSH user", placeholder="postmams"),
+        Field_("ssh_port", "SSH port", required=False, placeholder="22"),
+        Field_("paths", "Remote paths to back up (one per line)", type="textarea",
+               placeholder="/var/www/glpi"),
+        Field_("db_engine", "Database engine", type="select", required=False,
+               choices=["none", "mysql", "postgres"]),
+        Field_("db_host", "Database host (reachable directly from PUMA)", required=False,
+               placeholder="10.0.0.161"),
+        Field_("db_name", "Database name", required=False),
+        Field_("db_user", "Database user", required=False),
+        Field_("db_password", "Database password", type="password", required=False),
+    ]
+
+    def run(self, dest_dir: Path, log: list[str]) -> BackupResult:
+        host = self.config.get("ssh_host", "")
+        user = self.config.get("ssh_user", "")
+        if not host or not user:
+            raise BackupFailed("ssh_host and ssh_user are required")
+        port = self.config.get("ssh_port") or "22"
+        paths = [p.strip() for p in self.config.get("paths", "").splitlines() if p.strip()]
+        if not paths:
+            raise BackupFailed("no remote paths configured")
+
+        remote_cmd = "tar czf - " + " ".join(shlex.quote(p) for p in paths)
+        ssh_cmd = [
+            "ssh", "-p", str(port),
+            "-o", "BatchMode=yes",  # fail fast instead of hanging on a password prompt
+            "-o", "StrictHostKeyChecking=accept-new",
+            f"{user}@{host}", remote_cmd,
+        ]
+        out_path = dest_dir / "files.tar.gz"
+        self._run(ssh_cmd, log, stdout_file=out_path, timeout=3600)
+        log.append(f"{out_path.name}: {_human_size(out_path.stat().st_size)}")
+
+        engine = self.config.get("db_engine") or "none"
+        if engine != "none":
+            ext = "dump" if engine == "postgres" else "sql"
+            self._dump_db(
+                engine,
+                self.config.get("db_host", "") or host,
+                self.config.get("db_name", ""),
+                self.config.get("db_user", ""),
+                self.config.get("db_password", ""),
+                dest_dir / f"database.{ext}", log,
+            )
+        return BackupResult(success=True, size_bytes=_dir_size(dest_dir))
+
+
 def catalogue() -> list[dict[str, Any]]:
     """Fed to the Add/Edit Application GUI, same role as adapters.catalogue()."""
     return [cls.describe() for cls in REGISTRY.values()]
