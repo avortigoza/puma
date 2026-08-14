@@ -49,7 +49,7 @@
     </thead>
     <tbody>
       {% for run in runs %}
-      <tr id="backup-{{ run.id }}" class="border-b border-gray-100 dark:border-gray-800 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800" onclick="toggleBackupRow({{ run.id }})">
+      <tr id="backup-{{ run.id }}" data-status="{{ run.status.value }}" class="border-b border-gray-100 dark:border-gray-800 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800" onclick="toggleBackupRow({{ run.id }})">
         <td class="px-4 py-2.5 text-gray-600 dark:text-gray-300 whitespace-nowrap">{{ run.started_at | localdatetime }}</td>
         <td class="px-4 py-2.5 text-gray-700 dark:text-gray-200 whitespace-nowrap">{{ run.app_name }}</td>
         <td class="px-4 py-2.5 text-gray-400 dark:text-gray-500 whitespace-nowrap">{{ run.trigger.value | capitalize }}</td>
@@ -115,5 +115,42 @@
   function toggleBackupRow(runId) {
     document.getElementById('backup-detail-' + runId).classList.toggle('hidden');
   }
+
+  // Auto-refresh while any backup on this page is still running - a
+  // backup can take anywhere from seconds to minutes (it's running in
+  // the background, off the request), so without this the row just sits
+  // on "Running..." forever until someone manually reloads. Same poll
+  // pattern as the live email-sent toast elsewhere in the app.
+  (function () {
+    var runningIds = Array.prototype.map.call(
+      document.querySelectorAll('tr[data-status="running"]'),
+      function (el) { return el.id.replace('backup-', ''); }
+    );
+    if (!runningIds.length) return;
+
+    var POLL_MS = 4000;
+    function poll() {
+      fetch('/api/backup-status?ids=' + runningIds.join(','))
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var stillRunning = data.runs.some(function (r) { return r.status === 'running'; });
+          if (!stillRunning) {
+            // A reload re-renders everything correctly in one place (the
+            // log, the error text, the size, the icon) instead of trying
+            // to keep two separate renderers (this JS and the Jinja
+            // template) in sync by hand.
+            window.location.reload();
+            return;
+          }
+          setTimeout(poll, POLL_MS);
+        })
+        .catch(function () {
+          // A transient fetch failure shouldn't stop retrying - the
+          // person is still waiting on their backup either way.
+          setTimeout(poll, POLL_MS);
+        });
+    }
+    setTimeout(poll, POLL_MS);
+  })();
 </script>
 {% endblock %}

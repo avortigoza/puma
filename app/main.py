@@ -1487,6 +1487,32 @@ def email_events(since_id: int = 0, user: User = Depends(require_login)):
     }
 
 
+@app.get("/api/backup-status")
+def backup_status(ids: str = "", user: User = Depends(require_login)):
+    """Polled by the Backups page while any row is still 'running', so it
+    updates to Success/Error on its own - same pattern as /api/email-events
+    driving the live email toast. Only ever asked about a handful of ids
+    the page already knows are in-flight, not a general listing."""
+    id_list = [int(x) for x in ids.split(",") if x.strip().isdigit()]
+    if not id_list:
+        return {"runs": []}
+    with Session(engine) as session:
+        rows = session.exec(
+            select(BackupRun).where(BackupRun.id.in_(id_list))
+        ).all()
+    return {
+        "runs": [
+            {
+                "id": r.id,
+                "status": r.status.value,
+                "size_bytes": r.size_bytes,
+                "size_display": _format_bytes(r.size_bytes) if r.size_bytes else None,
+            }
+            for r in rows
+        ]
+    }
+
+
 @app.get("/notifications", response_class=HTMLResponse)
 def notifications_page(request: Request, page: int = 1, user: User = Depends(require_login)):
     with Session(engine) as session:
