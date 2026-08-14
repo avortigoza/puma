@@ -28,6 +28,17 @@ from pathlib import Path
 from typing import Any, ClassVar, Optional
 
 
+# The puma service account is a locked-down system user with no real
+# home directory (/nonexistent, /usr/sbin/nologin), so `ssh` can't rely
+# on its usual $HOME/.ssh/{known_hosts,id_*} defaults - it needs to be
+# told explicitly where to look. Reuse the same writable directory (and
+# the same env var) main.py already uses for the DB/logos/etc, rather
+# than introducing a second convention.
+_DB_PATH = os.environ.get("PUMA_DB_PATH", "/var/lib/puma/appmonitor.db")
+SSH_DIR = Path(_DB_PATH).parent / ".ssh"
+SSH_DIR.mkdir(parents=True, exist_ok=True)
+
+
 # --------------------------------------------------------------------------
 # Data carried between layers
 # --------------------------------------------------------------------------
@@ -437,9 +448,11 @@ class SshFilesAndDbDump(BackupStrategy):
             "local tar.gz over SSH, and can optionally dump a MySQL/"
             "MariaDB or PostgreSQL database too - but only if that "
             "database is reachable directly over the network from the "
-            "PUMA server (the dump isn't tunnelled through SSH). Needs "
-            "the puma service account to already have passwordless "
-            "SSH key access to the remote host/user.")
+            "PUMA server (the dump isn't tunnelled through SSH). Needs a "
+            "key at /var/lib/puma/.ssh/id_ed25519 (or id_ecdsa/id_rsa) "
+            "authorized on the remote host/user - the puma account has "
+            "no real home directory, so keys must live there specifically, "
+            "not wherever `ssh-keygen`'s own default would be.")
     fields = [
         Field_("ssh_host", "SSH host", placeholder="10.0.0.161"),
         Field_("ssh_user", "SSH user", placeholder="postmams"),
@@ -466,12 +479,21 @@ class SshFilesAndDbDump(BackupStrategy):
             raise BackupFailed("no remote paths configured")
 
         remote_cmd = "tar czf - " + " ".join(shlex.quote(p) for p in paths)
+        known_hosts = SSH_DIR / "known_hosts"
         ssh_cmd = [
             "ssh", "-p", str(port),
             "-o", "BatchMode=yes",  # fail fast instead of hanging on a password prompt
             "-o", "StrictHostKeyChecking=accept-new",
-            f"{user}@{host}", remote_cmd,
+            "-o", f"UserKnownHostsFile={known_hosts}",
         ]
+        # puma's $HOME (/nonexistent) means ssh won't find a key on its
+        # own either - point it at whichever of the usual key filenames
+        # actually exist under SSH_DIR instead of guessing one.
+        for name in ("id_ed25519", "id_ecdsa", "id_rsa"):
+            candidate = SSH_DIR / name
+            if candidate.exists():
+                ssh_cmd += ["-i", str(candidate)]
+        ssh_cmd += [f"{user}@{host}", remote_cmd]
         out_path = dest_dir / "files.tar.gz"
         self._run(ssh_cmd, log, stdout_file=out_path, timeout=3600)
         log.append(f"{out_path.name}: {_human_size(out_path.stat().st_size)}")
