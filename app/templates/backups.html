@@ -7,7 +7,13 @@
   <div>
     <a href="/" class="text-sm text-gray-400 hover:text-puma-primary">&larr; Back to Dashboard</a>
     <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-100 mt-2">Backups</h1>
-    <p class="text-gray-400 text-sm mt-1">Pre-update safety snapshots, {{ total_runs }} total. The last 5 runs per app are kept.</p>
+    <p class="text-gray-400 text-sm mt-1">
+      {% if selected_app %}
+      Pre-update safety snapshots for <span class="font-medium text-gray-600 dark:text-gray-300">{{ selected_app.name }}</span>, {{ total_runs }} total. The last 5 runs per app are kept.
+      {% else %}
+      Pre-update safety snapshots, {{ total_runs }} total. The last 5 runs per app are kept.
+      {% endif %}
+    </p>
   </div>
   {% if user.is_admin and runs %}
   <form method="post" action="/backups/clear"
@@ -30,7 +36,7 @@
   <div class="flex flex-wrap gap-2">
     {% for app in backupable_apps %}
     <form method="post" action="/applications/{{ app.id }}/backup">
-      <input type="hidden" name="next" value="/backups">
+      <input type="hidden" name="next" value="{{ '/backups?app_id=' ~ selected_app.id if selected_app else '/backups' }}">
       <button type="submit"
               class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-puma-primary-light dark:bg-puma-primary/20 text-puma-primary text-sm font-medium hover:bg-puma-primary/20 dark:hover:bg-puma-primary/40 transition-colors">
         {{ icon("grid", "w-3.5 h-3.5") }} {{ app.name }}
@@ -48,6 +54,23 @@
 {% endif %}
 
 <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 overflow-hidden">
+  {% if apps_with_backups %}
+  <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2">
+    <label for="app-filter" class="text-sm text-gray-500 dark:text-gray-400 shrink-0">Application</label>
+    <div class="relative w-56">
+      <select id="app-filter" onchange="if (this.value) { window.location = '/backups?app_id=' + this.value; } else { window.location = '/backups'; }"
+              class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-1.5 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30 appearance-none">
+        <option value="" {% if not selected_app %}selected{% endif %}>All applications</option>
+        {% for app in apps_with_backups %}
+        <option value="{{ app.id }}" {% if selected_app and selected_app.id == app.id %}selected{% endif %}>{{ app.name }}</option>
+        {% endfor %}
+      </select>
+      <div class="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-puma-primary">
+        {{ icon("chevron-down", "w-4 h-4") }}
+      </div>
+    </div>
+  </div>
+  {% endif %}
   {% if runs %}
   <table class="w-full text-sm">
     <thead>
@@ -104,13 +127,14 @@
   <div class="flex items-center justify-between px-4 py-3 border-t border-gray-100 dark:border-gray-800 text-sm">
     <span class="text-gray-400 dark:text-gray-500">Page {{ page }} of {{ total_pages }}</span>
     <div class="flex items-center gap-2">
+      {% set qs = '&app_id=' ~ selected_app.id if selected_app else '' %}
       {% if page > 1 %}
-      <a href="/backups?page={{ page - 1 }}" class="px-3 py-1.5 rounded-lg border border-puma-primary text-puma-primary font-medium hover:bg-puma-primary-light dark:hover:bg-puma-primary/20 transition-colors">Previous</a>
+      <a href="/backups?page={{ page - 1 }}{{ qs }}" class="px-3 py-1.5 rounded-lg border border-puma-primary text-puma-primary font-medium hover:bg-puma-primary-light dark:hover:bg-puma-primary/20 transition-colors">Previous</a>
       {% else %}
       <span class="px-3 py-1.5 rounded-lg border border-gray-100 dark:border-gray-800 text-gray-300 dark:text-gray-600">Previous</span>
       {% endif %}
       {% if page < total_pages %}
-      <a href="/backups?page={{ page + 1 }}" class="px-3 py-1.5 rounded-lg border border-puma-primary text-puma-primary font-medium hover:bg-puma-primary-light dark:hover:bg-puma-primary/20 transition-colors">Next</a>
+      <a href="/backups?page={{ page + 1 }}{{ qs }}" class="px-3 py-1.5 rounded-lg border border-puma-primary text-puma-primary font-medium hover:bg-puma-primary-light dark:hover:bg-puma-primary/20 transition-colors">Next</a>
       {% else %}
       <span class="px-3 py-1.5 rounded-lg border border-gray-100 dark:border-gray-800 text-gray-300 dark:text-gray-600">Next</span>
       {% endif %}
@@ -119,7 +143,9 @@
   {% endif %}
 
   {% else %}
-  <p class="text-sm text-gray-400 dark:text-gray-500 px-4 py-6">No backups have run yet.</p>
+  <p class="text-sm text-gray-400 dark:text-gray-500 px-4 py-6">
+    {% if selected_app %}No backups have run yet for {{ selected_app.name }}.{% else %}No backups have run yet.{% endif %}
+  </p>
   {% endif %}
 </div>
 

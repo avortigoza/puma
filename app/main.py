@@ -1263,14 +1263,27 @@ def history(request: Request, page: int = 1, user: User = Depends(require_login)
 
 
 @app.get("/backups", response_class=HTMLResponse)
-def backups_page(request: Request, page: int = 1, user: User = Depends(require_login)):
+def backups_page(
+    request: Request,
+    page: int = 1,
+    app_id: int | None = None,
+    user: User = Depends(require_login),
+):
     with Session(engine) as session:
-        total_runs = session.exec(select(func.count()).select_from(BackupRun)).one()
+        base_query = select(BackupRun)
+        count_query = select(func.count()).select_from(BackupRun)
+        selected_app = None
+        if app_id is not None:
+            selected_app = session.get(MonitoredApp, app_id)
+            base_query = base_query.where(BackupRun.app_id == app_id)
+            count_query = count_query.where(BackupRun.app_id == app_id)
+
+        total_runs = session.exec(count_query).one()
         total_pages = max(1, (total_runs + HISTORY_PAGE_SIZE - 1) // HISTORY_PAGE_SIZE)
         page = max(1, min(page, total_pages))
 
         runs = session.exec(
-            select(BackupRun)
+            base_query
             .order_by(BackupRun.started_at.desc())
             .offset((page - 1) * HISTORY_PAGE_SIZE)
             .limit(HISTORY_PAGE_SIZE)
@@ -1285,6 +1298,15 @@ def backups_page(request: Request, page: int = 1, user: User = Depends(require_l
             .order_by(MonitoredApp.name)
         ).all()
 
+        # Only apps that actually have at least one backup run show up in
+        # the filter dropdown - no point offering a filter that always
+        # renders empty.
+        apps_with_backups = session.exec(
+            select(MonitoredApp)
+            .where(MonitoredApp.id.in_(select(BackupRun.app_id).distinct()))
+            .order_by(MonitoredApp.name)
+        ).all()
+
     return render(
         request,
         "backups.html",
@@ -1292,6 +1314,8 @@ def backups_page(request: Request, page: int = 1, user: User = Depends(require_l
             "user": user,
             "runs": runs,
             "backupable_apps": backupable_apps,
+            "apps_with_backups": apps_with_backups,
+            "selected_app": selected_app,
             "page": page,
             "total_pages": total_pages,
             "total_runs": total_runs,
