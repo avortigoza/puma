@@ -269,6 +269,91 @@
     {{ checkbox("include_prerelease", "on", form.get('include_prerelease') == 'on', "Include pre-releases (rc, beta, alpha)") }}
   </div>
 
+  <!-- Backups -->
+  <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-5 space-y-4">
+    <div class="flex items-center gap-2 font-semibold text-gray-700 dark:text-gray-200">{{ icon("archive", "w-4 h-4 text-puma-primary") }} Backups</div>
+    <p class="text-xs text-gray-400 dark:text-gray-500 -mt-2">
+      Optional. Set this up to take a safety snapshot before you go run an upgrade by hand, or on its own schedule. The last 5 runs are kept; older ones are pruned automatically.
+    </p>
+
+    <div>
+      <label class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">Backup Strategy</label>
+      <div class="relative">
+        <select name="backup_strategy" id="backup_strategy"
+                class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30 appearance-none">
+          <option value="" {% if not form.get('backup_strategy') %}selected{% endif %}>None — no backup configured</option>
+          {% for bs in backup_strategies %}
+          <option value="{{ bs.key }}" {% if form.get('backup_strategy') == bs.key %}selected{% endif %}>{{ bs.label }}</option>
+          {% endfor %}
+        </select>
+        <div class="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-puma-primary">
+          {{ icon("chevron-down", "w-4 h-4") }}
+        </div>
+      </div>
+    </div>
+
+    {% for bs in backup_strategies %}
+    <div class="backup-fields space-y-4 {% if form.get('backup_strategy') != bs.key %}hidden{% endif %}"
+         data-backup-type="{{ bs.key }}">
+      {% if bs.hint %}
+      <p class="text-xs text-puma-primary bg-puma-primary/5 border border-puma-primary/15 rounded-lg px-3 py-2">
+        {{ bs.hint }}
+      </p>
+      {% endif %}
+      {% for field in bs.fields %}
+      <div>
+        <label class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">
+          {{ field.label }}{% if field.required %} *{% endif %}
+        </label>
+        {% if field.type == "select" %}
+        <div class="relative">
+          <select name="backup__{{ bs.key }}__{{ field.name }}"
+                  class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30 appearance-none">
+            {% for choice in field.choices %}
+            <option value="{{ choice }}" {% if form.get('backup__' ~ bs.key ~ '__' ~ field.name) == choice %}selected{% endif %}>{{ choice }}</option>
+            {% endfor %}
+          </select>
+          <div class="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-puma-primary">
+            {{ icon("chevron-down", "w-4 h-4") }}
+          </div>
+        </div>
+        {% elif field.type == "textarea" %}
+        <textarea name="backup__{{ bs.key }}__{{ field.name }}" rows="3"
+                  placeholder="{{ field.placeholder }}"
+                  class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30 font-mono">{{ form.get('backup__' ~ bs.key ~ '__' ~ field.name, '') }}</textarea>
+        {% else %}
+        <input type="{{ field.type }}" name="backup__{{ bs.key }}__{{ field.name }}"
+               value="{{ form.get('backup__' ~ bs.key ~ '__' ~ field.name, '') }}"
+               placeholder="{{ field.placeholder }}"
+               class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30">
+        {% endif %}
+        {% if field.help %}
+        <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">{{ field.help }}</p>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+
+    <div id="backup_schedule_row" class="{% if not form.get('backup_strategy') %}hidden{% endif %} space-y-4 border-t border-gray-100 dark:border-gray-800 pt-4">
+      {{ checkbox("backup_schedule_enabled", "on", form.get('backup_schedule_enabled') == 'on', "Also back up automatically on a schedule") }}
+      <div>
+        <label class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">Backup Interval</label>
+        <div class="relative">
+          <select name="backup_interval_minutes"
+                  class="w-full rounded-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-puma-primary/30 appearance-none">
+            {% for minutes, label in [(1440,"Daily"),(4320,"Every 3 days"),(10080,"Weekly")] %}
+            <option value="{{ minutes }}" {% if form.get('backup_interval_minutes', '1440')|int == minutes %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <div class="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-puma-primary">
+            {{ icon("chevron-down", "w-4 h-4") }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="flex items-center gap-3">
     <button type="submit"
             class="bg-puma-primary hover:bg-puma-primary-dark text-white font-medium rounded-lg px-5 py-2.5 text-sm transition">
@@ -293,6 +378,15 @@
     });
     var active = document.querySelector('.probe-fields[data-probe-type="' + this.value + '"]');
     if (active) active.classList.remove('hidden');
+  });
+
+  document.getElementById('backup_strategy').addEventListener('change', function () {
+    document.querySelectorAll('.backup-fields').forEach(function (el) {
+      el.classList.add('hidden');
+    });
+    var active = document.querySelector('.backup-fields[data-backup-type="' + this.value + '"]');
+    if (active) active.classList.remove('hidden');
+    document.getElementById('backup_schedule_row').classList.toggle('hidden', !this.value);
   });
 </script>
 {% endblock %}

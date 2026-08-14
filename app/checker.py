@@ -9,17 +9,24 @@ for a whole batch and rolls the results into a CheckRun for history.
 from __future__ import annotations
 
 import logging
+import os
+import shutil
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 import httpx
 from sqlmodel import Session, select
 
 import adapters
+import backups
 import versioning
 from emailer import send_email
 from models import (
+    BackupRun,
+    BackupStatus,
+    BackupTrigger,
     CheckRun,
     CheckStatus,
     CheckTrigger,
@@ -288,3 +295,99 @@ def run_check(
     session.add(run)
     session.commit()
     return run
+
+
+# --------------------------------------------------------------------------
+# Backups (pre-update safety snapshots)
+# --------------------------------------------------------------------------
+
+BACKUP_ROOT = Path(os.environ.get("PUMA_BACKUP_ROOT", "/var/lib/puma/backups"))
+BACKUP_KEEP_LAST_N = 5
+
+
+def run_backup(
+    session: Session, app_id: int, trigger: BackupTrigger = BackupTrigger.manual
+) -> BackupRun:
+    """Runs one app's configured backup strategy, records a BackupRun row
+    the whole way through (created up front as 'running' so a crash mid-
+    backup still leaves a visible, honest row instead of nothing at all),
+    and prunes old runs down to BACKUP_KEEP_LAST_N afterward."""
+    app_row = session.get(MonitoredApp, app_id)
+    if app_row is None:
+        raise ValueError(f"no such app: {app_id}")
+    if not app_row.backup_strategy:
+        raise ValueError(f"{app_row.name} has no backup strategy configured")
+
+    run = BackupRun(
+        app_id=app_row.id,
+        app_name=app_row.name,
+        strategy=app_row.backup_strategy,
+        trigger=trigger,
+        status=BackupStatus.running,
+    )
+    session.add(run)
+    session.commit()
+    session.refresh(run)
+
+    timestamp = run.started_at.strftime("%Y%m%d-%H%M%S")
+    # The run's own id is appended (not just the timestamp) because two
+    # backups triggered in quick succession - a manual click right after a
+    # scheduled one fires, or a tight retry - can land in the same second,
+    # and a directory collision must never be possible.
+    dest_dir = BACKUP_ROOT / app_row.slug / f"{timestamp}-{run.id}"
+    log: list[str] = []
+
+    try:
+        dest_dir.mkdir(parents=True, exist_ok=False)
+        strategy_cls = backups.REGISTRY.get(app_row.backup_strategy)
+        if strategy_cls is None:
+            raise backups.BackupFailed(f"unknown backup strategy: {app_row.backup_strategy}")
+        strategy = strategy_cls(app_row.backup_config or {})
+        result = strategy.run(dest_dir, log)
+
+        run.status = BackupStatus.success
+        run.dest_path = str(dest_dir)
+        run.size_bytes = result.size_bytes
+        app_row.last_backup_status = BackupStatus.success.value
+    except Exception as e:  # noqa: BLE001 - a backup failing must never crash the caller
+        logger.exception("Backup failed for %s", app_row.name)
+        run.status = BackupStatus.error
+        run.error = str(e)[:2000]
+        app_row.last_backup_status = BackupStatus.error.value
+        # Leave whatever partial output exists on disk for inspection
+        # rather than silently deleting evidence of what went wrong -
+        # it's pruned normally on a later successful run like anything else.
+        run.dest_path = str(dest_dir) if dest_dir.exists() else None
+    finally:
+        run.finished_at = datetime.now(timezone.utc)
+        run.log = _tail_log(log)
+        app_row.last_backup_at = run.started_at
+        session.add(run)
+        session.add(app_row)
+        session.commit()
+
+    _prune_old_backups(session, app_row.id)
+    return run
+
+
+def _tail_log(log: list[str], max_chars: int = 20000) -> str:
+    text = "\n".join(log)
+    if len(text) > max_chars:
+        text = f"... (truncated) ...\n{text[-max_chars:]}"
+    return text
+
+
+def _prune_old_backups(session: Session, app_id: int) -> None:
+    """Keeps only the BACKUP_KEEP_LAST_N most recent BackupRun rows (and
+    their on-disk directories) for one app - runs after every backup,
+    manual or scheduled, so disk usage never grows unbounded."""
+    runs = session.exec(
+        select(BackupRun)
+        .where(BackupRun.app_id == app_id)
+        .order_by(BackupRun.started_at.desc())
+    ).all()
+    for old in runs[BACKUP_KEEP_LAST_N:]:
+        if old.dest_path:
+            shutil.rmtree(old.dest_path, ignore_errors=True)
+        session.delete(old)
+    session.commit()

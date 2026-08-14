@@ -32,6 +32,17 @@ class CheckTrigger(str, Enum):
     scheduled = "scheduled"
 
 
+class BackupStatus(str, Enum):
+    running = "running"
+    success = "success"
+    error = "error"
+
+
+class BackupTrigger(str, Enum):
+    manual = "manual"
+    scheduled = "scheduled"
+
+
 # ---------------------------------------------------------------------------
 # Auth
 # ---------------------------------------------------------------------------
@@ -112,6 +123,16 @@ class MonitoredApp(SQLModel, table=True):
     )                                                    # ["ops-teams", "email"]
     notified_version: Optional[str] = None                # dedupe: don't re-alert
 
+    # --- backups (pre-update safety snapshots) ----------------------------
+    backup_strategy: Optional[str] = None                # backups.REGISTRY key, unset = not configured
+    backup_config: dict[str, Any] = Field(
+        default_factory=dict, sa_column=Column(JSON)
+    )
+    backup_schedule_enabled: bool = False
+    backup_interval_minutes: int = 1440                   # daily, if scheduled backups are on
+    last_backup_at: Optional[datetime] = None
+    last_backup_status: Optional[str] = None               # BackupStatus value, mirrors last_error pattern
+
     created_at: datetime = Field(default_factory=_now)
     updated_at: datetime = Field(default_factory=_now)
 
@@ -162,6 +183,33 @@ class ReleaseObservation(SQLModel, table=True):
     release_url: Optional[str] = None
     is_new: bool = False                                 # first sighting?
     duration_ms: Optional[int] = None
+    error: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# Backups (pre-update safety snapshots)
+# ---------------------------------------------------------------------------
+
+class BackupRun(SQLModel, table=True):
+    """One row per backup attempt for one app - the Backups history page's
+    equivalent of CheckRun/ReleaseObservation. Kept as its own table (not
+    folded into ReleaseObservation) because a backup is a much heavier,
+    slower, higher-stakes operation than a version check and deserves its
+    own retention/pruning lifecycle independent of check history."""
+
+    __tablename__ = "backup_run"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    app_id: int = Field(foreign_key="monitored_app.id", index=True)
+    app_name: str  # snapshot at run time - survives even if the app is later deleted/reconfigured
+    strategy: str  # backups.REGISTRY key used for this run
+    trigger: BackupTrigger = BackupTrigger.manual
+    status: BackupStatus = BackupStatus.running
+    started_at: datetime = Field(default_factory=_now, index=True)
+    finished_at: Optional[datetime] = None
+    dest_path: Optional[str] = None       # directory this run's files live in
+    size_bytes: Optional[int] = None
+    log: Optional[str] = None             # captured stdout/stderr, truncated
     error: Optional[str] = None
 
 

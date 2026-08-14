@@ -37,9 +37,13 @@ from sqlmodel import Session, SQLModel, create_engine, select, func
 from starlette.middleware.sessions import SessionMiddleware
 
 import adapters
+import backups
 import checker
 from emailer import SMTP_CONFIGURED, send_email
 from models import (
+    BackupRun,
+    BackupStatus,
+    BackupTrigger,
     CheckRun,
     CheckTrigger,
     EmailLog,
@@ -116,6 +120,7 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="stat
 # --------------------------------------------------------------------------
 
 scheduler_logger = logging.getLogger("puma.scheduler")
+logger = logging.getLogger("puma.main")
 
 
 def _scheduled_check_due(
@@ -171,6 +176,44 @@ async def scheduled_check_loop() -> None:
             # of the process's life - that would silently turn Auto Check
             # back off with no way to notice short of restarting the app.
             scheduler_logger.exception("Scheduled check loop iteration failed")
+
+
+async def scheduled_backup_loop() -> None:
+    """Runs for the lifetime of the process, checking once a minute for
+    apps whose own backup schedule is due. Backups are scheduled per-app
+    (backup_schedule_enabled + backup_interval_minutes on MonitoredApp),
+    not by one global setting like Auto Check - different apps warrant
+    very different backup cadences (a fast-moving app's daily database
+    vs. a slow one's weekly snapshot), so there's no one sensible global
+    interval to offer instead."""
+    while True:
+        await asyncio.sleep(60)
+        try:
+            with Session(engine) as session:
+                due_apps = session.exec(
+                    select(MonitoredApp)
+                    .where(MonitoredApp.backup_schedule_enabled == True)  # noqa: E712
+                    .where(MonitoredApp.backup_strategy.is_not(None))
+                ).all()
+                now = datetime.now(timezone.utc)
+                for app_row in due_apps:
+                    if _scheduled_check_due(app_row.last_backup_at, app_row.backup_interval_minutes, now):
+                        scheduler_logger.info(
+                            "Scheduled backup due for %s (interval=%s min, last=%s) - running now",
+                            app_row.name, app_row.backup_interval_minutes, app_row.last_backup_at,
+                        )
+                        try:
+                            checker.run_backup(session, app_row.id, BackupTrigger.scheduled)
+                        except Exception:
+                            # One app's backup failing (bad config, source
+                            # temporarily unreachable, disk full) must never
+                            # stop the rest of the due apps from getting
+                            # their turn in the same sweep.
+                            scheduler_logger.exception(
+                                "Scheduled backup failed for %s", app_row.name
+                            )
+        except Exception:
+            scheduler_logger.exception("Scheduled backup loop iteration failed")
 
 
 def render(
@@ -244,7 +287,7 @@ def get_dashboard_hidden_app_ids(session: Session) -> set[int]:
     return {int(x) for x in raw.split(",") if x.strip().isdigit()}
 
 
-SAFE_REDIRECT_PATHS = {"/", "/applications"}
+SAFE_REDIRECT_PATHS = {"/", "/applications", "/backups"}
 
 
 def safe_redirect_target(next_value: Optional[str]) -> str:
@@ -562,9 +605,10 @@ _background_tasks: set[asyncio.Task] = set()
 @app.on_event("startup")
 async def on_startup() -> None:
     SQLModel.metadata.create_all(engine)
-    task = asyncio.create_task(scheduled_check_loop())
-    _background_tasks.add(task)
-    task.add_done_callback(_background_tasks.discard)
+    for coro in (scheduled_check_loop(), scheduled_backup_loop()):
+        task = asyncio.create_task(coro)
+        _background_tasks.add(task)
+        task.add_done_callback(_background_tasks.discard)
 
 
 # --------------------------------------------------------------------------
@@ -612,111 +656,6 @@ def logout(request: Request):
 # Add Application
 # --------------------------------------------------------------------------
 
-def parse_application_form(
-    form, session: Session, exclude_app_id: Optional[int] = None
-) -> tuple[dict, list[str]]:
-    """Shared validation for both create and edit - so the two paths can
-    never quietly drift apart. Returns (kwargs_for_MonitoredApp, errors)."""
-    name = (form.get("name") or "").strip()
-    source_type = form.get("source_type") or ""
-
-    errors: list[str] = []
-    if not name:
-        errors.append("Application name is required.")
-    if source_type not in adapters.REGISTRY:
-        errors.append("Choose a valid update source.")
-
-    source_config: dict[str, str] = {}
-    if source_type in adapters.REGISTRY:
-        for field in adapters.REGISTRY[source_type].fields:
-            value = (form.get(f"cfg__{source_type}__{field.name}") or "").strip()
-            if field.required and not value:
-                errors.append(f"'{field.label}' is required for this source.")
-            if value:
-                source_config[field.name] = value
-
-    installed_probe = form.get("installed_probe") or ""
-    installed_probe_config: dict[str, str] = {}
-    if installed_probe and installed_probe not in adapters.REGISTRY:
-        errors.append("Choose a valid installed-version probe.")
-    elif installed_probe:
-        for field in adapters.REGISTRY[installed_probe].fields:
-            value = (form.get(f"probe__{installed_probe}__{field.name}") or "").strip()
-            if field.required and not value:
-                errors.append(f"'{field.label}' is required for the installed-version probe.")
-            if value:
-                installed_probe_config[field.name] = value
-
-    if name and not errors:
-        query = select(MonitoredApp).where(MonitoredApp.name == name)
-        if exclude_app_id is not None:
-            query = query.where(MonitoredApp.id != exclude_app_id)
-        if session.exec(query).first():
-            errors.append("An application with this name already exists.")
-
-    hosts_to_check = []
-    if not errors:
-        h = extract_target_host(source_type, source_config)
-        if h:
-            hosts_to_check.append(h)
-        if installed_probe:
-            h2 = extract_target_host(installed_probe, installed_probe_config)
-            if h2:
-                hosts_to_check.append(h2)
-    if hosts_to_check:
-        trusted = get_trusted_hosts(session)
-        for h in hosts_to_check:
-            if h.lower() not in trusted:
-                errors.append(
-                    f"'{h}' is not in Trusted Hosts. "
-                    f"Add it under Settings before using this source."
-                )
-
-    kwargs = dict(
-        name=name,
-        category=(form.get("category") or "").strip() or None,
-        source_type=source_type,
-        source_config=source_config,
-        version_pattern=(form.get("version_pattern") or "").strip() or None,
-        track_branch=(form.get("track_branch") or "").strip() or None,
-        include_prerelease=form.get("include_prerelease") == "on",
-        installed_probe=installed_probe or None,
-        installed_probe_config=installed_probe_config,
-        instance_url=(form.get("instance_url") or "").strip() or None,
-        installed_version=(form.get("installed_version") or "").strip() or None,
-        check_interval_minutes=int(form.get("check_interval_minutes") or 360),
-    )
-    return kwargs, errors
-
-
-def app_to_form_dict(app_row: MonitoredApp) -> dict:
-    """Reconstruct a form dict from a saved app, for pre-filling the edit form -
-    the mirror image of what the browser would submit."""
-    form: dict = {
-        "name": app_row.name,
-        "category": app_row.category or "",
-        "instance_url": app_row.instance_url or "",
-        "installed_version": app_row.installed_version or "",
-        "source_type": app_row.source_type,
-        "track_branch": app_row.track_branch or "",
-        "check_interval_minutes": str(app_row.check_interval_minutes),
-        "version_pattern": app_row.version_pattern or "",
-        "include_prerelease": "on" if app_row.include_prerelease else "",
-        "installed_probe": app_row.installed_probe or "",
-    }
-    if app_row.source_type in adapters.REGISTRY:
-        for field in adapters.REGISTRY[app_row.source_type].fields:
-            form[f"cfg__{app_row.source_type}__{field.name}"] = (
-                app_row.source_config.get(field.name, "")
-            )
-    if app_row.installed_probe and app_row.installed_probe in adapters.REGISTRY:
-        for field in adapters.REGISTRY[app_row.installed_probe].fields:
-            form[f"probe__{app_row.installed_probe}__{field.name}"] = (
-                app_row.installed_probe_config.get(field.name, "")
-            )
-    return form
-
-
 @app.get("/app-logos/{filename}")
 def serve_app_logo(filename: str, user: User = Depends(require_login)):
     # Resolve fully and confirm the result is still inside APP_LOGOS_DIR
@@ -739,6 +678,7 @@ def new_application_form(request: Request, next: str = "/", user: User = Depends
         {
             "user": user,
             "source_types": adapters.catalogue(),
+            "backup_strategies": backups.catalogue(),
             "error": None,
             "form": {"next": safe_redirect_target(next)},
             "editing_app": None,
@@ -779,6 +719,18 @@ def parse_app_form(form) -> tuple[dict, list[str]]:
             if value:
                 installed_probe_config[field.name] = value
 
+    backup_strategy = form.get("backup_strategy") or ""
+    backup_config: dict[str, str] = {}
+    if backup_strategy and backup_strategy not in backups.REGISTRY:
+        errors.append("Choose a valid backup strategy.")
+    elif backup_strategy:
+        for field in backups.REGISTRY[backup_strategy].fields:
+            value = (form.get(f"backup__{backup_strategy}__{field.name}") or "").strip()
+            if field.required and not value:
+                errors.append(f"'{field.label}' is required for this backup strategy.")
+            if value:
+                backup_config[field.name] = value
+
     fields = dict(
         name=name,
         category=(form.get("category") or "").strip() or None,
@@ -792,6 +744,10 @@ def parse_app_form(form) -> tuple[dict, list[str]]:
         instance_url=(form.get("instance_url") or "").strip() or None,
         installed_version=(form.get("installed_version") or "").strip() or None,
         check_interval_minutes=int(form.get("check_interval_minutes") or 360),
+        backup_strategy=backup_strategy or None,
+        backup_config=backup_config,
+        backup_schedule_enabled=form.get("backup_schedule_enabled") == "on",
+        backup_interval_minutes=int(form.get("backup_interval_minutes") or 1440),
     )
     return fields, errors
 
@@ -832,12 +788,18 @@ def app_to_form_dict(app_row: MonitoredApp) -> dict:
         "version_pattern": app_row.version_pattern or "",
         "include_prerelease": "on" if app_row.include_prerelease else "",
         "installed_probe": app_row.installed_probe or "",
+        "backup_strategy": app_row.backup_strategy or "",
+        "backup_schedule_enabled": "on" if app_row.backup_schedule_enabled else "",
+        "backup_interval_minutes": str(app_row.backup_interval_minutes),
     }
     for k, v in (app_row.source_config or {}).items():
         d[f"cfg__{app_row.source_type}__{k}"] = v
     if app_row.installed_probe:
         for k, v in (app_row.installed_probe_config or {}).items():
             d[f"probe__{app_row.installed_probe}__{k}"] = v
+    if app_row.backup_strategy:
+        for k, v in (app_row.backup_config or {}).items():
+            d[f"backup__{app_row.backup_strategy}__{k}"] = v
     return d
 
 
@@ -884,6 +846,7 @@ async def create_application(request: Request, user: User = Depends(require_admi
                 {
                     "user": user,
                     "source_types": adapters.catalogue(),
+                    "backup_strategies": backups.catalogue(),
                     "error": " ".join(errors),
                     "form": form_dict,
                     "editing_app": None,
@@ -908,6 +871,7 @@ async def create_application(request: Request, user: User = Depends(require_admi
                     {
                         "user": user,
                         "source_types": adapters.catalogue(),
+                        "backup_strategies": backups.catalogue(),
                         "error": str(e),
                         "form": dict(form),
                         "editing_app": None,
@@ -944,6 +908,7 @@ def edit_application_form(
         {
             "user": user,
             "source_types": adapters.catalogue(),
+            "backup_strategies": backups.catalogue(),
             "error": None,
             "form": form_dict,
             "editing_app": app_row,
@@ -1001,6 +966,7 @@ async def update_application(app_id: int, request: Request, user: User = Depends
                 {
                     "user": user,
                     "source_types": adapters.catalogue(),
+                    "backup_strategies": backups.catalogue(),
                     "error": " ".join(errors),
                     "form": form_dict,
                     "editing_app": app_row,
@@ -1019,6 +985,7 @@ async def update_application(app_id: int, request: Request, user: User = Depends
                     {
                         "user": user,
                         "source_types": adapters.catalogue(),
+                        "backup_strategies": backups.catalogue(),
                         "error": str(e),
                         "form": dict(form),
                         "editing_app": app_row,
@@ -1111,6 +1078,24 @@ def check_one(
 ):
     with Session(engine) as session:
         checker.run_check(session, CheckTrigger.manual, app_ids=[app_id])
+    return RedirectResponse(safe_redirect_target(next), status_code=303)
+
+
+@app.post("/applications/{app_id}/backup")
+def backup_one(
+    app_id: int,
+    next: Optional[str] = Form(default="/"),
+    user: User = Depends(require_admin),
+):
+    with Session(engine) as session:
+        try:
+            checker.run_backup(session, app_id, BackupTrigger.manual)
+        except ValueError:
+            # No strategy configured, or a bad app_id - the kebab menu
+            # only ever shows "Backup Now" when a strategy is set, so this
+            # is a defensive no-op rather than something a normal click
+            # through the UI can trigger.
+            logger.warning("Backup requested for app %s with no valid strategy", app_id)
     return RedirectResponse(safe_redirect_target(next), status_code=303)
 
 
@@ -1237,6 +1222,43 @@ def history(request: Request, page: int = 1, user: User = Depends(require_login)
             "runs": runs,
             "obs_by_run": obs_by_run,
             "apps_by_id": apps_by_id,
+            "page": page,
+            "total_pages": total_pages,
+            "total_runs": total_runs,
+        },
+    )
+
+
+@app.get("/backups", response_class=HTMLResponse)
+def backups_page(request: Request, page: int = 1, user: User = Depends(require_login)):
+    with Session(engine) as session:
+        total_runs = session.exec(select(func.count()).select_from(BackupRun)).one()
+        total_pages = max(1, (total_runs + HISTORY_PAGE_SIZE - 1) // HISTORY_PAGE_SIZE)
+        page = max(1, min(page, total_pages))
+
+        runs = session.exec(
+            select(BackupRun)
+            .order_by(BackupRun.started_at.desc())
+            .offset((page - 1) * HISTORY_PAGE_SIZE)
+            .limit(HISTORY_PAGE_SIZE)
+        ).all()
+
+        # Apps with a strategy configured at all - the page's "Backup Now"
+        # quick-action list, since an app with nothing configured has no
+        # useful action to offer here beyond "go set one up".
+        backupable_apps = session.exec(
+            select(MonitoredApp)
+            .where(MonitoredApp.backup_strategy.is_not(None))
+            .order_by(MonitoredApp.name)
+        ).all()
+
+    return render(
+        request,
+        "backups.html",
+        {
+            "user": user,
+            "runs": runs,
+            "backupable_apps": backupable_apps,
             "page": page,
             "total_pages": total_pages,
             "total_runs": total_runs,
@@ -1534,6 +1556,9 @@ def _format_bytes(num_bytes: int) -> str:
             return f"{size:.1f} {unit}" if unit != "B" else f"{int(size)} {unit}"
         size /= 1024
     return f"{size:.1f} TB"
+
+
+templates.env.filters["filesize"] = _format_bytes
 
 
 @app.get("/system-info", response_class=HTMLResponse)

@@ -131,6 +131,13 @@
               <div id="menu-{{ app.id }}" class="puma-app-menu hidden absolute right-0 mt-1 w-44 bg-white dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700 shadow-lg z-10 py-1 text-left">
                 <a href="/applications/{{ app.id }}/edit?next={{ request.url.path }}"
                    class="block px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">Edit</a>
+                {% if app.backup_strategy %}
+                <form method="post" action="/applications/{{ app.id }}/backup">
+                  <input type="hidden" name="next" value="{{ request.url.path }}">
+                  <button type="submit"
+                          class="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">Backup Now</button>
+                </form>
+                {% endif %}
                 <form method="post" action="/applications/{{ app.id }}/reset-notification"
                       onsubmit="return confirm('Clear the notified marker for {{ app.name }}? The next check will treat its current latest version as new again and may send a fresh notification/email.');">
                   <input type="hidden" name="next" value="{{ request.url.path }}">
