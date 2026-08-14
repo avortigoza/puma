@@ -328,9 +328,17 @@ SAFE_REDIRECT_PATHS = {"/", "/applications", "/backups"}
 def safe_redirect_target(next_value: Optional[str]) -> str:
     """Only ever redirect to a known internal page - never trust an
     arbitrary value from a form field as a redirect target (open-redirect
-    risk), even though today's callers only ever send "/" or
-    "/applications"."""
-    if next_value in SAFE_REDIRECT_PATHS:
+    risk). Allows a query string on top of a whitelisted path (e.g.
+    "/backups?app_id=5" from the Backups page's app filter) as long as
+    the path itself - not the query - is one of SAFE_REDIRECT_PATHS, and
+    the value never specifies a scheme or host (which would make it an
+    off-site redirect rather than a relative in-app one)."""
+    if not next_value:
+        return "/"
+    parsed = urlparse(next_value)
+    if parsed.scheme or parsed.netloc:
+        return "/"
+    if parsed.path in SAFE_REDIRECT_PATHS:
         return next_value
     return "/"
 
