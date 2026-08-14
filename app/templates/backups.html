@@ -21,7 +21,7 @@
       <input type="hidden" name="next" value="/backups">
       <button type="submit"
               class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-puma-primary-light dark:bg-puma-primary/20 text-puma-primary text-sm font-medium hover:bg-puma-primary/20 dark:hover:bg-puma-primary/40 transition-colors">
-        {{ icon("archive", "w-3.5 h-3.5") }} {{ app.name }}
+        {{ icon("grid", "w-3.5 h-3.5") }} {{ app.name }}
       </button>
     </form>
     {% endfor %}
@@ -55,11 +55,11 @@
         <td class="px-4 py-2.5 text-gray-400 dark:text-gray-500 whitespace-nowrap">{{ run.trigger.value | capitalize }}</td>
         <td class="px-4 py-2.5">
           {% if run.status.value == "success" %}
-          <span class="inline-flex items-center gap-1 text-puma-green">{{ icon("check-circle", "w-3 h-3") }} Success</span>
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-puma-green-bg dark:bg-puma-green/20 text-puma-green text-xs font-medium">{{ icon("check-circle", "w-3 h-3") }} Success</span>
           {% elif run.status.value == "error" %}
-          <span class="inline-flex items-center gap-1 text-puma-red">{{ icon("alert", "w-3 h-3") }} Error</span>
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-puma-red-bg dark:bg-puma-red/20 text-puma-red text-xs font-medium">{{ icon("alert", "w-3 h-3") }} Error</span>
           {% else %}
-          <span class="text-puma-primary">Running&hellip;</span>
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-puma-primary-light dark:bg-puma-primary/20 text-puma-primary text-xs font-medium">Running&hellip;</span>
           {% endif %}
         </td>
         <td class="px-4 py-2.5 text-gray-500 dark:text-gray-400 text-xs whitespace-nowrap">
