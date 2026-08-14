@@ -459,6 +459,9 @@ class SshFilesAndDbDump(BackupStrategy):
         Field_("ssh_port", "SSH port", required=False, placeholder="22"),
         Field_("paths", "Remote paths to back up (one per line)", type="textarea",
                placeholder="/var/www/glpi"),
+        Field_("exclude", "Exclude patterns (one per line, optional)", type="textarea", required=False,
+               placeholder="_sessions",
+               help="Matched against any path component (GNU tar --exclude semantics), so a bare name like _sessions skips that directory wherever it appears. Use for transient data - session files, caches, tmp/lock dirs - that has no backup value and is often unreadable by the SSH backup account anyway since it's owned by the web server user."),
         Field_("db_engine", "Database engine", type="select", required=False,
                choices=["none", "mysql", "postgres"]),
         Field_("db_host", "Database host (reachable directly from PUMA)", required=False,
@@ -478,7 +481,11 @@ class SshFilesAndDbDump(BackupStrategy):
         if not paths:
             raise BackupFailed("no remote paths configured")
 
-        remote_cmd = "tar czf - " + " ".join(shlex.quote(p) for p in paths)
+        remote_cmd = "tar czf -"
+        excludes = [e.strip() for e in self.config.get("exclude", "").splitlines() if e.strip()]
+        for e in excludes:
+            remote_cmd += " --exclude=" + shlex.quote(e)
+        remote_cmd += " " + " ".join(shlex.quote(p) for p in paths)
         known_hosts = SSH_DIR / "known_hosts"
         ssh_cmd = [
             "ssh", "-p", str(port),
