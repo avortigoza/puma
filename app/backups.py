@@ -384,9 +384,9 @@ class RunScript(BackupStrategy):
     fields = [
         Field_("command", "Command", placeholder="sudo gitlab-backup create"),
         Field_("working_dir", "Working directory", required=False),
-        Field_("artifact_glob", "Where to find the result afterward",
+        Field_("artifact_glob", "Where to find the result afterward", required=False,
                placeholder="/var/opt/gitlab/backups/*_gitlab_backup.tar",
-               help="PUMA copies whatever matches this pattern into its own dated backup folder."),
+               help="PUMA copies whatever matches this pattern into its own dated backup folder. Leave blank if the command's own console output is all you need captured."),
     ]
 
     def run(self, dest_dir: Path, log: list[str]) -> BackupResult:

@@ -27,7 +27,7 @@ from zoneinfo import ZoneInfo
 # of the process's working directory.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from fastapi import Depends, FastAPI, Form, HTTPException, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -141,6 +141,30 @@ def _scheduled_check_due(
     return elapsed_minutes >= interval_minutes
 
 
+def _run_backup_sync(app_id: int, trigger: BackupTrigger) -> None:
+    """Runs one app's backup with its own fresh DB session - never handed a
+    Session that was opened on another thread or coroutine, since SQLAlchemy
+    sessions aren't safe to share across threads. This is the one function
+    both the manual-trigger route (via BackgroundTasks, off the request
+    entirely) and the scheduler (via asyncio.to_thread, off the event loop)
+    call, so a Moodle-sized backup can run for minutes without either
+    hanging a browser tab (504) or freezing every other page load for
+    every other user while it runs - a real backup is genuinely slow
+    (tar-ing a data directory, pg_dump), and nothing about that should ever
+    block anything other than itself."""
+    with Session(engine) as session:
+        try:
+            checker.run_backup(session, app_id, trigger)
+        except ValueError:
+            logger.warning("Backup requested for app %s with no valid strategy", app_id)
+        except Exception:
+            # Mirrors checker.run_backup's own top-level catch - belt and
+            # suspenders, since this also runs completely detached from
+            # any request or the scheduler's own try/except once it's
+            # handed off to a background thread.
+            logger.exception("Backup failed for app %s", app_id)
+
+
 async def scheduled_check_loop() -> None:
     """Runs for the lifetime of the process, checking once a minute
     whether a scheduled sweep is due. There was previously no scheduler
@@ -185,7 +209,16 @@ async def scheduled_backup_loop() -> None:
     not by one global setting like Auto Check - different apps warrant
     very different backup cadences (a fast-moving app's daily database
     vs. a slow one's weekly snapshot), so there's no one sensible global
-    interval to offer instead."""
+    interval to offer instead.
+
+    The due-apps query runs on the event loop (fast, a single SELECT),
+    but each actual backup runs via asyncio.to_thread - a real backup can
+    take minutes (tar-ing a data directory, pg_dump), and that's a
+    blocking, synchronous operation under the hood (subprocess.run).
+    Calling it directly in this coroutine would freeze the entire app -
+    every page load, every login, for every user - for as long as the
+    backup takes. to_thread hands it to a worker thread and awaits there,
+    so the event loop stays free to keep serving everyone else."""
     while True:
         await asyncio.sleep(60)
         try:
@@ -196,22 +229,23 @@ async def scheduled_backup_loop() -> None:
                     .where(MonitoredApp.backup_strategy.is_not(None))
                 ).all()
                 now = datetime.now(timezone.utc)
-                for app_row in due_apps:
-                    if _scheduled_check_due(app_row.last_backup_at, app_row.backup_interval_minutes, now):
-                        scheduler_logger.info(
-                            "Scheduled backup due for %s (interval=%s min, last=%s) - running now",
-                            app_row.name, app_row.backup_interval_minutes, app_row.last_backup_at,
-                        )
-                        try:
-                            checker.run_backup(session, app_row.id, BackupTrigger.scheduled)
-                        except Exception:
-                            # One app's backup failing (bad config, source
-                            # temporarily unreachable, disk full) must never
-                            # stop the rest of the due apps from getting
-                            # their turn in the same sweep.
-                            scheduler_logger.exception(
-                                "Scheduled backup failed for %s", app_row.name
-                            )
+                due = [
+                    (app_row.id, app_row.name)
+                    for app_row in due_apps
+                    if _scheduled_check_due(app_row.last_backup_at, app_row.backup_interval_minutes, now)
+                ]
+            # session closed before any slow work starts - it must not sit
+            # open (or be passed across threads) for however long these take
+            for app_id, app_name in due:
+                scheduler_logger.info("Scheduled backup due for %s - running now", app_name)
+                try:
+                    await asyncio.to_thread(_run_backup_sync, app_id, BackupTrigger.scheduled)
+                except Exception:
+                    # One app's backup failing (bad config, source
+                    # temporarily unreachable, disk full) must never
+                    # stop the rest of the due apps from getting
+                    # their turn in the same sweep.
+                    scheduler_logger.exception("Scheduled backup failed for %s", app_name)
         except Exception:
             scheduler_logger.exception("Scheduled backup loop iteration failed")
 
@@ -1084,18 +1118,16 @@ def check_one(
 @app.post("/applications/{app_id}/backup")
 def backup_one(
     app_id: int,
+    background_tasks: BackgroundTasks,
     next: Optional[str] = Form(default="/"),
     user: User = Depends(require_admin),
 ):
-    with Session(engine) as session:
-        try:
-            checker.run_backup(session, app_id, BackupTrigger.manual)
-        except ValueError:
-            # No strategy configured, or a bad app_id - the kebab menu
-            # only ever shows "Backup Now" when a strategy is set, so this
-            # is a defensive no-op rather than something a normal click
-            # through the UI can trigger.
-            logger.warning("Backup requested for app %s with no valid strategy", app_id)
+    # Runs off the request entirely - a real backup (tar-ing a data
+    # directory, pg_dump) can take minutes, and the click that triggers
+    # it deserves an instant response, not a page hung waiting on nginx's
+    # gateway timeout. The BackupRun row appears (as "Running...") within
+    # a moment on /backups; refresh to see it finish.
+    background_tasks.add_task(_run_backup_sync, app_id, BackupTrigger.manual)
     return RedirectResponse(safe_redirect_target(next), status_code=303)
 
 
