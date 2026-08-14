@@ -13,7 +13,6 @@ import logging
 import os
 import platform
 import re
-import shutil
 import socket
 import sys
 import uuid
@@ -1329,23 +1328,6 @@ def backups_page(
             "total_runs": total_runs,
         },
     )
-
-
-@app.post("/backups/clear")
-def clear_backup_history(user: User = Depends(require_admin)):
-    """Deletes every BackupRun row AND the actual backup files on disk -
-    not just the history list. Leaving the files behind while wiping the
-    rows that point to them would just turn them into untracked, silently
-    orphaned data taking up space forever - the opposite of what backup
-    retention is supposed to guarantee."""
-    with Session(engine) as session:
-        runs = session.exec(select(BackupRun)).all()
-        for run in runs:
-            if run.dest_path:
-                shutil.rmtree(run.dest_path, ignore_errors=True)
-            session.delete(run)
-        session.commit()
-    return RedirectResponse("/backups", status_code=303)
 
 
 @app.get("/settings", response_class=HTMLResponse)
