@@ -444,19 +444,33 @@ class SshFilesAndDbDump(BackupStrategy):
     key = "ssh_files_and_db_dump"
     label = "Remote (SSH) files + database dump"
     hint = ("For an app hosted on a *different* server than PUMA, e.g. "
-            "GLPI on its own VM. Streams the listed remote path(s) into a "
-            "local tar.gz over SSH, and can optionally dump a MySQL/"
-            "MariaDB or PostgreSQL database too - but only if that "
-            "database is reachable directly over the network from the "
-            "PUMA server (the dump isn't tunnelled through SSH). Needs a "
-            "key at /var/lib/puma/.ssh/id_ed25519 (or id_ecdsa/id_rsa) "
+            "GLPI on its own VM (Linux) or a Windows service like Stanza "
+            "GMA. Streams the listed remote path(s) into a local tar.gz "
+            "over SSH, and can optionally dump a MySQL/MariaDB or "
+            "PostgreSQL database too - but only if that database is "
+            "reachable directly over the network from the PUMA server "
+            "(the dump isn't tunnelled through SSH). Needs a key at "
+            "/var/lib/puma/.ssh/id_ed25519 (or id_ecdsa/id_rsa) "
             "authorized on the remote host/user - the puma account has "
             "no real home directory, so keys must live there specifically, "
-            "not wherever `ssh-keygen`'s own default would be.")
+            "not wherever `ssh-keygen`'s own default would be. On "
+            "Windows, that means either the user's own "
+            "C:\\Users\\<user>\\.ssh\\authorized_keys, or, if that account "
+            "is a local administrator, the system-wide "
+            "C:\\ProgramData\\ssh\\administrators_authorized_keys instead "
+            "(with SYSTEM/Administrators-only permissions) - and the "
+            "remote machine needs tar.exe reachable on PATH, which ships "
+            "built into Windows 10 1803+ / Server 2019+.")
     fields = [
         Field_("ssh_host", "SSH host", placeholder="10.0.0.161"),
         Field_("ssh_user", "SSH user", placeholder="postmams"),
         Field_("ssh_port", "SSH port", required=False, placeholder="22"),
+        Field_("remote_os", "Remote OS", type="select", required=False, choices=["linux", "windows"],
+               help="How paths and exclude patterns get quoted for the remote shell. Linux paths go "
+                    "through a POSIX shell (sh/bash); Windows paths go through cmd.exe, which quotes "
+                    "arguments completely differently - in particular it doesn't understand the single "
+                    "quotes a POSIX shell would use, and backslashes (which every Windows path has) "
+                    "would otherwise force POSIX-style quoting to kick in on every single path."),
         Field_("paths", "Remote paths to back up (one per line)", type="textarea",
                placeholder="/var/www/glpi"),
         Field_("exclude", "Exclude patterns (one per line, optional)", type="textarea", required=False,
@@ -471,6 +485,20 @@ class SshFilesAndDbDump(BackupStrategy):
         Field_("db_password", "Database password", type="password", required=False),
     ]
 
+    @staticmethod
+    def _win_quote(s: str) -> str:
+        """Quote a single argument the way cmd.exe / the standard Windows
+        argv parser expects - wrap in double quotes and escape any literal
+        quote characters. Deliberately NOT shlex.quote: POSIX quoting
+        treats backslash as needing escaping, so it would wrap every
+        Windows path in single quotes, which cmd.exe doesn't treat as
+        quoting at all - the literal quote characters would end up as
+        part of the path tar.exe tries to open. Doesn't attempt to
+        escape cmd.exe's own metacharacters (&, |, %, ^, ...) since none
+        of those are legal in a real Windows path anyway; this only needs
+        to survive cmd.exe treating the argument as one token."""
+        return '"' + s.replace('"', '\\"') + '"'
+
     def run(self, dest_dir: Path, log: list[str]) -> BackupResult:
         host = self.config.get("ssh_host", "")
         user = self.config.get("ssh_user", "")
@@ -480,12 +508,14 @@ class SshFilesAndDbDump(BackupStrategy):
         paths = [p.strip() for p in self.config.get("paths", "").splitlines() if p.strip()]
         if not paths:
             raise BackupFailed("no remote paths configured")
+        is_windows = (self.config.get("remote_os") or "linux") == "windows"
+        quote = self._win_quote if is_windows else shlex.quote
 
         remote_cmd = "tar czf -"
         excludes = [e.strip() for e in self.config.get("exclude", "").splitlines() if e.strip()]
         for e in excludes:
-            remote_cmd += " --exclude=" + shlex.quote(e)
-        remote_cmd += " " + " ".join(shlex.quote(p) for p in paths)
+            remote_cmd += " --exclude=" + quote(e)
+        remote_cmd += " " + " ".join(quote(p) for p in paths)
         known_hosts = SSH_DIR / "known_hosts"
         ssh_cmd = [
             "ssh", "-p", str(port),
