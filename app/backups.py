@@ -20,6 +20,7 @@ from __future__ import annotations
 import glob
 import os
 import shlex
+import shutil
 import subprocess
 import tarfile
 from abc import ABC, abstractmethod
@@ -171,6 +172,27 @@ class BackupStrategy(ABC):
         log.append(f"Archiving {len(paths)} path(s) as root -> {out_path.name}")
         self._run(["sudo", "tar", "czf", str(out_path), *paths], log)
         log.append(f"{out_path.name}: {_human_size(out_path.stat().st_size)}")
+
+    def _copy_extra_files(self, paths: list[str], dest_dir: Path, log: list[str]) -> None:
+        """Copies a handful of individual files into this run's folder
+        as-is - for static config/secrets a command's own backup output
+        doesn't include (e.g. GitLab's gitlab-secrets.json, XWiki's
+        docker-compose.yml). Unlike _tar_paths, these are copied flat,
+        one file each, not archived together - there are only ever a
+        few of them and keeping them as separate, individually-openable
+        files makes them easier to actually use during a real restore.
+        Missing files fail the whole backup rather than skipping
+        silently: something like gitlab-secrets.json isn't optional -
+        without it the main backup archive can't even be decrypted, so
+        a backup that quietly omitted it would look successful while
+        actually being useless for a restore."""
+        for p in paths:
+            src = Path(p)
+            if not src.is_file():
+                raise BackupFailed(f"extra file not found or not readable by the puma user: {p}")
+            dest = dest_dir / src.name
+            shutil.copy2(src, dest)
+            log.append(f"Copied {p} -> {dest.name} ({_human_size(dest.stat().st_size)})")
 
     def _dump_db(
         self, engine: str, host: str, name: str, user: str, password: str,
@@ -354,6 +376,9 @@ class DockerVolumesAndDbDump(BackupStrategy):
         Field_("db_name", "Database name", required=False),
         Field_("db_user", "Database user", required=False),
         Field_("db_password", "Database password", type="password", required=False),
+        Field_("extra_files", "Extra files to include (one path per line, optional)", type="textarea", required=False,
+               placeholder="/home/postmams/xwiki-docker/docker-compose.yml",
+               help="Copied in as-is every run - the volumes hold the data, but without the compose file defining images, ports, and DB credentials, there's no record of how to actually stand the containers back up to use it."),
     ]
 
     def run(self, dest_dir: Path, log: list[str]) -> BackupResult:
@@ -396,8 +421,12 @@ class DockerVolumesAndDbDump(BackupStrategy):
                 self._run(cmd, log, stdout_file=out_path)
             log.append(f"{out_path.name}: {_human_size(out_path.stat().st_size)}")
 
-        if not volumes and engine == "none":
-            raise BackupFailed("nothing configured to back up (no volumes, no database)")
+        extra_files = [p.strip() for p in self.config.get("extra_files", "").splitlines() if p.strip()]
+        if extra_files:
+            self._copy_extra_files(extra_files, dest_dir, log)
+
+        if not volumes and engine == "none" and not extra_files:
+            raise BackupFailed("nothing configured to back up (no volumes, no database, no extra files)")
         return BackupResult(success=True, size_bytes=_dir_size(dest_dir))
 
 
@@ -424,6 +453,9 @@ class RunScript(BackupStrategy):
         Field_("artifact_glob", "Where to find the result afterward", required=False,
                placeholder="/var/opt/gitlab/backups/*_gitlab_backup.tar",
                help="PUMA copies whatever matches this pattern into its own dated backup folder. Leave blank if the command's own console output is all you need captured."),
+        Field_("extra_files", "Extra files to include (one path per line, optional)", type="textarea", required=False,
+               placeholder="/var/opt/gitlab/backups/gitlab.rb\n/var/opt/gitlab/backups/gitlab-secrets.json",
+               help="Copied in as-is every run, alongside the main artifact - for static config/secrets the command's own backup doesn't include but a real restore needs. GitLab's own tool warns that gitlab.rb and gitlab-secrets.json aren't in its backup archive; without gitlab-secrets.json specifically, that archive can't even be decrypted on restore."),
     ]
 
     def run(self, dest_dir: Path, log: list[str]) -> BackupResult:
@@ -448,6 +480,11 @@ class RunScript(BackupStrategy):
 
         if copied == 0 and not pattern:
             log.append("No artifact pattern configured - only the command's own output was captured.")
+
+        extra_files = [p.strip() for p in self.config.get("extra_files", "").splitlines() if p.strip()]
+        if extra_files:
+            self._copy_extra_files(extra_files, dest_dir, log)
+
         return BackupResult(success=True, size_bytes=_dir_size(dest_dir))
 
 
