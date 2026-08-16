@@ -1143,6 +1143,86 @@ def backup_one(
 # Dashboard
 # --------------------------------------------------------------------------
 
+# --------------------------------------------------------------------------
+# Public read-only status API (no login) - for other apps on the LAN to
+# query PUMA's dashboard/backup status. Deliberately unauthenticated by
+# request: this relies entirely on the network being restricted (the UFW
+# rule scoping port 8123 to 10.0.0.0/23) rather than a login/API key, so
+# ANY device that can reach this port can read it. Only ever return
+# status/version fields here - never source_config/installed_probe_config/
+# backup_config, which hold real credentials (DB passwords, API tokens)
+# for the very same MonitoredApp rows.
+# --------------------------------------------------------------------------
+
+def _app_status(a: MonitoredApp) -> str:
+    """Same four-state logic _applications_table.html uses, kept in one
+    place so the API and the UI can never quietly disagree on what
+    'up to date' means."""
+    if not a.latest_version:
+        return "not_checked"
+    if not a.installed_version:
+        return "unknown"
+    if a.update_available:
+        return "update_available"
+    return "up_to_date"
+
+
+@app.get("/api/v1/dashboard")
+def api_dashboard():
+    with Session(engine) as session:
+        apps = session.exec(select(MonitoredApp).order_by(MonitoredApp.name)).all()
+
+        last_full_run = session.exec(
+            select(CheckRun)
+            .where(CheckRun.is_full_check == True)  # noqa: E712
+            .order_by(CheckRun.started_at.desc())
+            .limit(1)
+        ).first()
+
+        app_list = []
+        for a in apps:
+            backup_info = None
+            if a.backup_strategy:
+                last_run = session.exec(
+                    select(BackupRun)
+                    .where(BackupRun.app_id == a.id)
+                    .where(BackupRun.status == BackupStatus.success)
+                    .order_by(BackupRun.started_at.desc())
+                    .limit(1)
+                ).first()
+                backup_info = {
+                    "configured": True,
+                    "schedule_enabled": a.backup_schedule_enabled,
+                    "last_backup_at": a.last_backup_at.isoformat() if a.last_backup_at else None,
+                    "last_backup_status": a.last_backup_status,
+                    "last_successful_size_bytes": last_run.size_bytes if last_run else None,
+                }
+            else:
+                backup_info = {"configured": False}
+
+            app_list.append({
+                "name": a.name,
+                "category": a.category,
+                "source_type": a.source_type,
+                "instance_url": a.instance_url,
+                "installed_version": a.installed_version,
+                "latest_version": a.latest_version,
+                "status": _app_status(a),
+                "last_checked_at": a.last_checked_at.isoformat() if a.last_checked_at else None,
+                "last_error": a.last_error,
+                "backup": backup_info,
+            })
+
+        summary = {
+            "apps_monitored": len(apps),
+            "up_to_date": sum(1 for a in apps if a.installed_version and not a.update_available),
+            "updates_available": sum(1 for a in apps if a.update_available),
+            "last_full_check_at": last_full_run.started_at.isoformat() if last_full_run else None,
+        }
+
+    return {"summary": summary, "apps": app_list}
+
+
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request, user: User = Depends(require_login)):
     with Session(engine) as session:
