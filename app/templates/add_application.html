@@ -301,6 +301,14 @@
       </p>
       {% endif %}
       {% for field in bs.fields %}
+      {% if field.type == "checkbox" %}
+      <div>
+        {{ checkbox('backup__' ~ bs.key ~ '__' ~ field.name, "on", form.get('backup__' ~ bs.key ~ '__' ~ field.name) == 'on', field.label) }}
+        {% if field.help %}
+        <p class="text-xs text-gray-400 dark:text-gray-500 mt-1 ml-6">{{ field.help }}</p>
+        {% endif %}
+      </div>
+      {% else %}
       <div>
         <label class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">
           {{ field.label }}{% if field.required %} *{% endif %}
@@ -331,6 +339,7 @@
         <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">{{ field.help }}</p>
         {% endif %}
       </div>
+      {% endif %}
       {% endfor %}
     </div>
     {% endfor %}

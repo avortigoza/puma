@@ -155,6 +155,23 @@ class BackupStrategy(ABC):
                 tar.add(p, arcname=os.path.basename(p.rstrip("/")))
         log.append(f"{out_path.name}: {_human_size(out_path.stat().st_size)}")
 
+    def _tar_paths_as_root(self, paths: list[str], out_path: Path, log: list[str]) -> None:
+        """Same job as _tar_paths, but shells out to `sudo tar` instead of
+        reading the paths directly as the puma user. For a mix of paths
+        owned by different accounts (e.g. a web app's www-data-owned data
+        directory alongside root-owned webserver/cron config), granting
+        puma piecemeal read access to each one via ACLs is fragile - a
+        process resetting one directory's ACL mask (a bare chmod on any
+        file inside it does this) silently caps every grant on that tree
+        back down, which is exactly the kind of thing that breaks again
+        later without warning. Root reads all of it unconditionally
+        instead, so this sidesteps the whole category of problem - at
+        the cost of needing a sudo grant for this exact command shape to
+        already exist on the server (see this strategy's own hint text)."""
+        log.append(f"Archiving {len(paths)} path(s) as root -> {out_path.name}")
+        self._run(["sudo", "tar", "czf", str(out_path), *paths], log)
+        log.append(f"{out_path.name}: {_human_size(out_path.stat().st_size)}")
+
     def _dump_db(
         self, engine: str, host: str, name: str, user: str, password: str,
         out_path: Path, log: list[str],
@@ -220,12 +237,18 @@ class FileAndDbDump(BackupStrategy):
     label = "Files + database dump"
     hint = ("For an app installed on this server outside Docker (e.g. "
             "Moodle). Tars the listed director(ies) and, optionally, dumps "
-            "a MySQL/MariaDB or PostgreSQL database alongside them. The "
-            "puma service account needs read access to the paths and "
-            "working DB client tools if a database is configured.")
+            "a MySQL/MariaDB or PostgreSQL database alongside them. "
+            "Either the puma service account needs read access to every "
+            "path listed, or check \"Run as root\" and grant "
+            "`puma ALL=(root) NOPASSWD: /usr/bin/tar czf *` in a sudoers "
+            "file - useful when the paths span more than one owner (e.g. "
+            "app data plus a webserver config file), since piecemeal ACL "
+            "grants across mixed ownership are fragile.")
     fields = [
         Field_("paths", "Paths to back up (one per line)", type="textarea",
                placeholder="/var/www/moodle\n/var/www/moodledata"),
+        Field_("run_as_root", "Run as root (sudo)", type="checkbox", required=False,
+               help="For paths owned by more than one account. Needs a matching sudoers grant on the server first - see the note above."),
         Field_("db_engine", "Database engine", type="select", required=False,
                choices=["none", "mysql", "postgres"]),
         Field_("db_host", "Database host", required=False, placeholder="localhost"),
@@ -238,7 +261,10 @@ class FileAndDbDump(BackupStrategy):
         paths = [p.strip() for p in self.config.get("paths", "").splitlines() if p.strip()]
         if not paths:
             raise BackupFailed("no paths configured")
-        self._tar_paths(paths, dest_dir / "files.tar.gz", log)
+        if self.config.get("run_as_root") == "on":
+            self._tar_paths_as_root(paths, dest_dir / "files.tar.gz", log)
+        else:
+            self._tar_paths(paths, dest_dir / "files.tar.gz", log)
 
         engine = self.config.get("db_engine") or "none"
         if engine != "none":
