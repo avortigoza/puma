@@ -23,3 +23,59 @@
   --color-puma-red: #dc2626;
   --color-puma-red-bg: #fee2e2;
 }
+
+/* Rendered Markdown for restore procedures (backups.html, restore_procedures.html).
+   No Tailwind Typography plugin here, so this is hand-written rather than
+   `prose` classes - kept intentionally plain: this content gets read under
+   real time pressure during an actual restore, so legibility and easy
+   command-copying matter more than visual polish. */
+.puma-markdown h1, .puma-markdown h2, .puma-markdown h3,
+.puma-markdown h4, .puma-markdown h5, .puma-markdown h6 {
+  font-weight: 600;
+  color: var(--color-puma-primary);
+  margin-top: 1em;
+  margin-bottom: 0.4em;
+}
+.puma-markdown h1 { font-size: 1.25rem; }
+.puma-markdown h2 { font-size: 1.1rem; }
+.puma-markdown h3, .puma-markdown h4, .puma-markdown h5, .puma-markdown h6 { font-size: 1rem; }
+.puma-markdown p { margin-bottom: 0.75em; line-height: 1.6; }
+.puma-markdown ul, .puma-markdown ol { margin: 0 0 0.75em 1.5em; }
+.puma-markdown ul { list-style: disc; }
+.puma-markdown ol { list-style: decimal; }
+.puma-markdown li { margin-bottom: 0.25em; line-height: 1.6; }
+.puma-markdown a { color: var(--color-puma-primary); text-decoration: underline; }
+.puma-markdown code {
+  font-family: ui-monospace, monospace;
+  font-size: 0.85em;
+  background: var(--color-puma-primary-light);
+  padding: 0.1em 0.35em;
+  border-radius: 0.25em;
+}
+.puma-markdown pre {
+  font-family: ui-monospace, monospace;
+  font-size: 0.85em;
+  background: #1f2937;
+  color: #f3f4f6;
+  padding: 0.75em 1em;
+  border-radius: 0.5em;
+  overflow-x: auto;
+  margin-bottom: 0.75em;
+}
+.puma-markdown pre code { background: none; padding: 0; color: inherit; }
+.puma-markdown blockquote {
+  border-left: 3px solid var(--color-puma-primary);
+  padding-left: 0.75em;
+  color: #6b7280;
+  margin-bottom: 0.75em;
+}
+.puma-markdown table { border-collapse: collapse; margin-bottom: 0.75em; width: 100%; }
+.puma-markdown th, .puma-markdown td {
+  border: 1px solid #e5e7eb;
+  padding: 0.4em 0.6em;
+  text-align: left;
+  font-size: 0.9em;
+}
+.dark .puma-markdown code { background: rgba(232, 42, 120, 0.15); }
+.dark .puma-markdown blockquote { color: #9ca3af; }
+.dark .puma-markdown th, .dark .puma-markdown td { border-color: #374151; }

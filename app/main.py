@@ -27,6 +27,8 @@ from zoneinfo import ZoneInfo
 # of the process's working directory.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import bleach
+import markdown as markdown_lib
 from fastapi import BackgroundTasks, Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -612,6 +614,33 @@ def app_badge_color(slug: str) -> str:
 
 templates.env.filters["app_badge_color"] = app_badge_color
 
+# Restore procedures are free-text Markdown the user writes, but they're
+# then shown to any logged-in user (not just whoever wrote them), so the
+# rendered HTML needs to be sanitized rather than trusted outright -
+# Markdown itself passes raw HTML straight through unless something else
+# strips it.
+_MARKDOWN_ALLOWED_TAGS = [
+    "h1", "h2", "h3", "h4", "h5", "h6", "p", "br", "hr",
+    "strong", "em", "del", "code", "pre", "blockquote",
+    "ul", "ol", "li", "a",
+    "table", "thead", "tbody", "tr", "th", "td",
+]
+_MARKDOWN_ALLOWED_ATTRS = {"a": ["href", "title"]}
+
+
+def render_markdown(text: Optional[str]) -> str:
+    if not text:
+        return ""
+    html = markdown_lib.markdown(
+        text, extensions=["fenced_code", "tables", "sane_lists"]
+    )
+    return bleach.clean(
+        html, tags=_MARKDOWN_ALLOWED_TAGS, attributes=_MARKDOWN_ALLOWED_ATTRS, strip=True
+    )
+
+
+templates.env.filters["markdown"] = render_markdown
+
 
 def require_login(request: Request) -> User:
     user_id = request.session.get("user_id")
@@ -790,6 +819,8 @@ def parse_app_form(form) -> tuple[dict, list[str]]:
         backup_config=backup_config,
         backup_schedule_enabled=form.get("backup_schedule_enabled") == "on",
         backup_interval_minutes=int(form.get("backup_interval_minutes") or 1440),
+        upgrade_procedure=(form.get("upgrade_procedure") or "").strip() or None,
+        restore_procedure=(form.get("restore_procedure") or "").strip() or None,
     )
     return fields, errors
 
@@ -833,6 +864,8 @@ def app_to_form_dict(app_row: MonitoredApp) -> dict:
         "backup_strategy": app_row.backup_strategy or "",
         "backup_schedule_enabled": "on" if app_row.backup_schedule_enabled else "",
         "backup_interval_minutes": str(app_row.backup_interval_minutes),
+        "upgrade_procedure": app_row.upgrade_procedure or "",
+        "restore_procedure": app_row.restore_procedure or "",
     }
     for k, v in (app_row.source_config or {}).items():
         d[f"cfg__{app_row.source_type}__{k}"] = v
@@ -1385,6 +1418,14 @@ def backups_page(
             .order_by(MonitoredApp.name)
         ).all()
 
+        # Apps that back up but have no documented way to actually use
+        # that backup - the whole point of a backup is being able to
+        # restore from it, so this gap is worth surfacing rather than
+        # letting it sit unnoticed the way Moodle's did.
+        apps_missing_restore_procedure = [
+            a for a in backupable_apps if not a.restore_procedure
+        ]
+
         # Only apps that actually have at least one backup run show up in
         # the filter dropdown - no point offering a filter that always
         # renders empty.
@@ -1402,11 +1443,29 @@ def backups_page(
             "runs": runs,
             "backupable_apps": backupable_apps,
             "apps_with_backups": apps_with_backups,
+            "apps_missing_restore_procedure": apps_missing_restore_procedure,
             "selected_app": selected_app,
             "page": page,
             "total_pages": total_pages,
             "total_runs": total_runs,
         },
+    )
+
+
+@app.get("/procedures", response_class=HTMLResponse)
+def procedures_page(request: Request, user: User = Depends(require_login)):
+    """Every app's upgrade + restore documentation in one place - the
+    audit/handoff view, complementing the per-app view already shown on
+    /backups when filtered to one app. Lists every monitored app, not
+    just ones with a backup strategy configured - an upgrade procedure
+    is useful even for an app PUMA doesn't back up (yet, or at all)."""
+    with Session(engine) as session:
+        apps = session.exec(select(MonitoredApp).order_by(MonitoredApp.name)).all()
+
+    return render(
+        request,
+        "procedures.html",
+        {"user": user, "apps": apps},
     )
 
 

@@ -41,6 +41,48 @@
 </div>
 {% endif %}
 
+{% if apps_missing_restore_procedure %}
+<div class="rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/40 px-4 py-3 mb-6 flex items-start gap-2.5">
+  {{ icon("alert", "w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0") }}
+  <p class="text-sm text-amber-800 dark:text-amber-300">
+    <span class="font-medium">
+      {% if apps_missing_restore_procedure|length == 1 %}
+      {{ apps_missing_restore_procedure[0].name }} has backups configured but no restore procedure written yet.
+      {% else %}
+      {{ apps_missing_restore_procedure|length }} apps have backups configured but no restore procedure written yet:
+      {{ apps_missing_restore_procedure|map(attribute='name')|join(', ') }}.
+      {% endif %}
+    </span>
+    A backup is only useful if there's a documented way to actually use it — add one from each app's Edit page, or see
+    <a href="/procedures" class="underline hover:no-underline">Procedures</a>.
+  </p>
+</div>
+{% endif %}
+
+{% if selected_app and (selected_app.upgrade_procedure or selected_app.restore_procedure) %}
+<div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-5 mb-6 space-y-5">
+  <div class="flex items-center gap-2 font-semibold text-gray-700 dark:text-gray-200">
+    {{ icon("book-open", "w-4 h-4 text-puma-primary") }} Procedures
+  </div>
+  {% if selected_app.upgrade_procedure %}
+  <div>
+    <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide">Upgrade Procedure</p>
+    <div class="puma-markdown max-w-none">
+      {{ selected_app.upgrade_procedure | markdown | safe }}
+    </div>
+  </div>
+  {% endif %}
+  {% if selected_app.restore_procedure %}
+  <div>
+    <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide">Restore Procedure</p>
+    <div class="puma-markdown max-w-none">
+      {{ selected_app.restore_procedure | markdown | safe }}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
 <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 overflow-hidden">
   {% if apps_with_backups %}
   <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2">
