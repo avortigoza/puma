@@ -234,7 +234,7 @@ async def scheduled_backup_loop() -> None:
                 due = [
                     (app_row.id, app_row.name)
                     for app_row in due_apps
-                    if _scheduled_check_due(app_row.last_backup_at, app_row.backup_interval_minutes, now)
+                    if _scheduled_check_due(app_row.last_scheduled_backup_at, app_row.backup_interval_minutes, now)
                 ]
             # session closed before any slow work starts - it must not sit
             # open (or be passed across threads) for however long these take

@@ -362,6 +362,15 @@ def run_backup(
         run.finished_at = datetime.now(timezone.utc)
         run.log = _tail_log(log)
         app_row.last_backup_at = run.started_at
+        if trigger == BackupTrigger.scheduled:
+            # Kept separate from last_backup_at deliberately - the
+            # schedule's own due-check reads only this field, so a manual
+            # "Backup Now" click never pushes the next scheduled run
+            # further out. Updated on both success and failure, same
+            # convention as last_backup_at, so a persistently failing
+            # scheduled backup retries on its normal cadence rather than
+            # hammering a broken target every minute.
+            app_row.last_scheduled_backup_at = run.started_at
         session.add(run)
         session.add(app_row)
         session.commit()
