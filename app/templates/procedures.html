@@ -16,43 +16,47 @@
   <p class="text-sm text-gray-400 dark:text-gray-500">No applications are being monitored yet.</p>
 </div>
 {% else %}
-<div class="space-y-4">
-  {% for app in apps %}
-  <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-5">
-    <div class="flex items-center justify-between gap-4 mb-3">
-      <div class="flex items-center gap-2 font-semibold text-gray-700 dark:text-gray-200">
-        {{ icon("grid", "w-4 h-4 text-puma-primary") }} {{ app.name }}
-      </div>
-      <a href="/applications/{{ app.id }}/edit?next=/procedures"
-         class="text-xs text-puma-primary hover:underline shrink-0">
-        {% if app.upgrade_procedure or app.restore_procedure %}Edit{% else %}Add procedures{% endif %}
-      </a>
-    </div>
-
-    <div class="space-y-4">
-      <div>
-        <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide">Upgrade Procedure</p>
-        {% if app.upgrade_procedure %}
-        <div class="puma-markdown max-w-none">{{ app.upgrade_procedure | markdown | safe }}</div>
-        {% else %}
-        <p class="text-sm text-gray-400 dark:text-gray-500">Not written yet.</p>
-        {% endif %}
-      </div>
-      <div>
-        <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide">Restore Procedure</p>
-        {% if app.restore_procedure %}
-        <div class="puma-markdown max-w-none">{{ app.restore_procedure | markdown | safe }}</div>
-        {% elif app.backup_strategy %}
-        <p class="text-sm text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
-          {{ icon("alert", "w-3.5 h-3.5") }} Not written yet - this app has backups configured.
-        </p>
-        {% else %}
-        <p class="text-sm text-gray-400 dark:text-gray-500">Not written yet.</p>
-        {% endif %}
-      </div>
-    </div>
-  </div>
-  {% endfor %}
+<div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 overflow-hidden">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="text-gray-800 dark:text-gray-100 border-b border-gray-100 dark:border-gray-800 bg-puma-primary-light dark:bg-puma-primary/20">
+        <th class="text-left font-medium px-4 py-2.5">Application</th>
+        <th class="text-left font-medium px-4 py-2.5">Upgrade Procedure</th>
+        <th class="text-left font-medium px-4 py-2.5">Restore Procedure</th>
+        <th class="px-4 py-2.5"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for app in apps %}
+      <tr class="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800">
+        <td class="px-4 py-3">
+          <div class="flex items-center gap-2 font-medium text-gray-700 dark:text-gray-200">
+            {{ icon("grid", "w-4 h-4 text-puma-primary") }} {{ app.name }}
+          </div>
+        </td>
+        <td class="px-4 py-3">
+          {% if app.upgrade_procedure %}
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-puma-green-bg dark:bg-puma-green/20 text-puma-green text-xs font-medium">{{ icon("check-circle", "w-3 h-3") }} Written</span>
+          {% else %}
+          <span class="text-xs text-gray-400 dark:text-gray-500">Not written</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3">
+          {% if app.restore_procedure %}
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-puma-green-bg dark:bg-puma-green/20 text-puma-green text-xs font-medium">{{ icon("check-circle", "w-3 h-3") }} Written</span>
+          {% elif app.backup_strategy %}
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 text-xs font-medium">{{ icon("alert", "w-3 h-3") }} Missing</span>
+          {% else %}
+          <span class="text-xs text-gray-400 dark:text-gray-500">Not written</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3 text-right">
+          <a href="/procedures/{{ app.id }}" class="text-xs text-puma-primary hover:underline font-medium">View &rarr;</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
 {% endif %}
 {% endblock %}

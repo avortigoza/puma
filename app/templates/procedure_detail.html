@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}{{ app.name }} Procedures{% endblock %}
+{% block content %}
+{% from "base.html" import icon %}
+
+<div class="mb-6">
+  <a href="/procedures" class="text-sm text-gray-400 hover:text-puma-primary">&larr; Back to Procedures</a>
+  <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-100 mt-2 flex items-center gap-2">
+    {{ icon("grid", "w-5 h-5 text-puma-primary") }} {{ app.name }}
+  </h1>
+  <div class="flex items-center gap-3 mt-2">
+    <a href="/applications/{{ app.id }}/edit?next=/procedures/{{ app.id }}" class="text-xs text-puma-primary hover:underline font-medium">
+      {% if app.upgrade_procedure or app.restore_procedure %}Edit these procedures{% else %}Add procedures{% endif %}
+    </a>
+    <a href="/backups?app_id={{ app.id }}" class="text-xs text-gray-400 hover:text-puma-primary">View backup history &rarr;</a>
+  </div>
+</div>
+
+{% if not app.upgrade_procedure and not app.restore_procedure %}
+<div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-6">
+  <p class="text-sm text-gray-400 dark:text-gray-500">
+    Nothing written yet for {{ app.name }}.
+    <a href="/applications/{{ app.id }}/edit?next=/procedures/{{ app.id }}" class="text-puma-primary hover:underline">Add an upgrade and/or restore procedure</a>.
+  </p>
+</div>
+{% else %}
+
+<div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-5 mb-4">
+  <div class="flex items-center gap-2 font-semibold text-gray-700 dark:text-gray-200 mb-3">
+    {{ icon("book-open", "w-4 h-4 text-puma-primary") }} Upgrade Procedure
+  </div>
+  {% if app.upgrade_procedure %}
+  <div class="puma-markdown max-w-none">{{ app.upgrade_procedure | markdown | safe }}</div>
+  {% else %}
+  <p class="text-sm text-gray-400 dark:text-gray-500">Not written yet.</p>
+  {% endif %}
+</div>
+
+<div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-5">
+  <div class="flex items-center gap-2 font-semibold text-gray-700 dark:text-gray-200 mb-3">
+    {{ icon("book-open", "w-4 h-4 text-puma-primary") }} Restore Procedure
+  </div>
+  {% if app.restore_procedure %}
+  <div class="puma-markdown max-w-none">{{ app.restore_procedure | markdown | safe }}</div>
+  {% elif app.backup_strategy %}
+  <p class="text-sm text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+    {{ icon("alert", "w-3.5 h-3.5") }} Not written yet - this app has backups configured.
+  </p>
+  {% else %}
+  <p class="text-sm text-gray-400 dark:text-gray-500">Not written yet.</p>
+  {% endif %}
+</div>
+
+{% endif %}
+{% endblock %}

@@ -1454,11 +1454,15 @@ def backups_page(
 
 @app.get("/procedures", response_class=HTMLResponse)
 def procedures_page(request: Request, user: User = Depends(require_login)):
-    """Every app's upgrade + restore documentation in one place - the
-    audit/handoff view, complementing the per-app view already shown on
-    /backups when filtered to one app. Lists every monitored app, not
-    just ones with a backup strategy configured - an upgrade procedure
-    is useful even for an app PUMA doesn't back up (yet, or at all)."""
+    """Compact index - every monitored app, one line each, linking out to
+    its own dedicated page for the full content. Deliberately not
+    rendering every app's Markdown on this one page: even a handful of
+    apps with real, filled-in procedures (which tend to run long - see
+    Moodle's) makes a single combined page an unreasonably long scroll,
+    and it only gets worse as more apps get documented. An index + a
+    detail page per app scales to any number of apps and any amount of
+    content, and gives a clean, bookmarkable link straight to one app's
+    steps for handing off during an actual incident."""
     with Session(engine) as session:
         apps = session.exec(select(MonitoredApp).order_by(MonitoredApp.name)).all()
 
@@ -1466,6 +1470,20 @@ def procedures_page(request: Request, user: User = Depends(require_login)):
         request,
         "procedures.html",
         {"user": user, "apps": apps},
+    )
+
+
+@app.get("/procedures/{app_id}", response_class=HTMLResponse)
+def procedure_detail_page(app_id: int, request: Request, user: User = Depends(require_login)):
+    with Session(engine) as session:
+        app_row = session.get(MonitoredApp, app_id)
+        if app_row is None:
+            raise HTTPException(status_code=404, detail="No such application")
+
+    return render(
+        request,
+        "procedure_detail.html",
+        {"user": user, "app": app_row},
     )
 
 
