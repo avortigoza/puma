@@ -323,7 +323,10 @@ def get_dashboard_hidden_app_ids(session: Session) -> set[int]:
     return {int(x) for x in raw.split(",") if x.strip().isdigit()}
 
 
-SAFE_REDIRECT_PATHS = {"/", "/applications", "/backups"}
+SAFE_REDIRECT_PATHS = {"/", "/applications", "/backups", "/procedures"}
+_SAFE_REDIRECT_PATH_PATTERNS = [
+    re.compile(r"^/procedures/\d+$"),  # per-app Procedures detail page
+]
 
 
 def safe_redirect_target(next_value: Optional[str]) -> str:
@@ -333,13 +336,21 @@ def safe_redirect_target(next_value: Optional[str]) -> str:
     "/backups?app_id=5" from the Backups page's app filter) as long as
     the path itself - not the query - is one of SAFE_REDIRECT_PATHS, and
     the value never specifies a scheme or host (which would make it an
-    off-site redirect rather than a relative in-app one)."""
+    off-site redirect rather than a relative in-app one).
+
+    A handful of pages are per-app (their path includes that app's own
+    id, e.g. /procedures/5), so a fixed set of literal strings can never
+    cover them - _SAFE_REDIRECT_PATH_PATTERNS matches those by shape
+    instead, restricted to digits only so it can't be widened into an
+    actual open redirect."""
     if not next_value:
         return "/"
     parsed = urlparse(next_value)
     if parsed.scheme or parsed.netloc:
         return "/"
     if parsed.path in SAFE_REDIRECT_PATHS:
+        return next_value
+    if any(p.match(parsed.path) for p in _SAFE_REDIRECT_PATH_PATTERNS):
         return next_value
     return "/"
 
