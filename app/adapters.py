@@ -16,6 +16,7 @@ import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, ClassVar, Optional
 
 import httpx
@@ -383,6 +384,93 @@ class GitLocalTag(SourceAdapter):
             pass
 
         return FetchResult([Release(raw_tag=tag, published_at=commit_date)])
+
+
+# Same key directory the Remote (SSH) backup strategy uses
+# (backups.SSH_DIR) - deliberately re-derived here rather than imported
+# from backups.py, so this module doesn't take on a dependency on that
+# one just for a path. Both point at the same real directory on disk
+# either way, since both derive it from the same PUMA_DB_PATH env var.
+_SSH_DIR = Path(os.environ.get("PUMA_DB_PATH", "/var/lib/puma/appmonitor.db")).parent / ".ssh"
+_SSH_DIR.mkdir(parents=True, exist_ok=True)
+
+
+@register
+class SshCommandRegex(SourceAdapter):
+    """Read the installed version by running a command over SSH on a
+    *different* server than PUMA itself, then extracting it with a
+    regex - e.g. reading a Docker image tag directly (`docker inspect
+    ... --format='{{.Config.Image}}'`) for an app like Authentik, where
+    checking the version through the app's own API runs into its
+    permission tiers (admin-only endpoints, tokens needing superuser
+    scope) instead of anything PUMA can fix on its end. Reuses the exact
+    same SSH key/known_hosts setup as the Remote (SSH) backup strategy -
+    if that's already configured for a given server (e.g. for GLPI's
+    backups), this probe needs nothing new set up on the remote end."""
+
+    key = "ssh_command_regex"
+    label = "SSH — run command (regex)"
+    hint = ("For an app on a *different* server than PUMA, where "
+            "checking the version through the app's own API is "
+            "impractical (e.g. it needs admin-tier permissions a "
+            "regular API token doesn't have). Runs a command over SSH "
+            "and extracts the version with a regex - most often reading "
+            "a Docker image tag directly instead of going through the "
+            "app's own API. Needs a key at /var/lib/puma/.ssh/id_ed25519 "
+            "(or id_ecdsa/id_rsa) authorized on the remote host/user - "
+            "the same one used for SSH-based backups, if this server "
+            "already has one set up for that.")
+    fields = [
+        Field_("ssh_host", "SSH host", placeholder="10.0.0.161"),
+        Field_("ssh_user", "SSH user", placeholder="postmams"),
+        Field_("ssh_port", "SSH port", required=False, placeholder="22"),
+        Field_("command", "Command",
+               placeholder="docker inspect authentik-server --format='{{.Config.Image}}'"),
+        Field_("pattern", "Regex (1 capture group)",
+               placeholder=r":([\d.]+)$",
+               help="Matched against the command's stdout."),
+    ]
+
+    def fetch(self, etag=None, last_modified=None) -> FetchResult:
+        import subprocess
+        host = self.config.get("ssh_host", "")
+        user = self.config.get("ssh_user", "")
+        if not host or not user:
+            raise SourceUnavailable("ssh_host and ssh_user are required")
+        port = self.config.get("ssh_port") or "22"
+        command = self.config.get("command", "")
+        if not command:
+            raise SourceUnavailable("no command configured")
+
+        known_hosts = _SSH_DIR / "known_hosts"
+        ssh_cmd = [
+            "ssh", "-p", str(port),
+            "-o", "BatchMode=yes",  # fail fast instead of hanging on a password prompt
+            "-o", "StrictHostKeyChecking=accept-new",
+            "-o", f"UserKnownHostsFile={known_hosts}",
+        ]
+        # puma's $HOME (/nonexistent) means ssh won't find a key on its
+        # own either - point it at whichever of the usual key filenames
+        # actually exist under _SSH_DIR instead of guessing one.
+        for name in ("id_ed25519", "id_ecdsa", "id_rsa"):
+            candidate = _SSH_DIR / name
+            if candidate.exists():
+                ssh_cmd += ["-i", str(candidate)]
+        ssh_cmd += [f"{user}@{host}", command]
+
+        try:
+            proc = subprocess.run(
+                ssh_cmd, capture_output=True, text=True, timeout=30, check=False,
+            )
+        except OSError as e:
+            raise SourceUnavailable(f"ssh not available: {e}") from e
+        if proc.returncode != 0:
+            raise SourceUnavailable(
+                f"ssh command failed ({user}@{host}): {proc.stderr.strip()[:200]}"
+            )
+        found = re.findall(self.config["pattern"], proc.stdout)
+        rels = [Release(raw_tag=m if isinstance(m, str) else m[0]) for m in found]
+        return FetchResult(rels)
 
 
 @register
