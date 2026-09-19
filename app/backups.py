@@ -541,8 +541,16 @@ class SshFilesAndDbDump(BackupStrategy):
                help="Matched against any path component (GNU tar --exclude semantics), so a bare name like _sessions skips that directory wherever it appears. Use for transient data - session files, caches, tmp/lock dirs - that has no backup value and is often unreadable by the SSH backup account anyway since it's owned by the web server user."),
         Field_("db_engine", "Database engine", type="select", required=False,
                choices=["none", "mysql", "postgres"]),
-        Field_("db_host", "Database host (reachable directly from PUMA)", required=False,
-               placeholder="10.0.0.161"),
+        Field_("db_via_docker", "Dump via docker exec on the remote host", type="checkbox", required=False,
+               help="For a database running in a container with no port exposed to the network at all "
+                    "(common - many Docker Compose setups only expose the app's own port, not the "
+                    "database's). Runs the dump *inside* the remote server's docker exec instead of "
+                    "connecting to it directly from PUMA. Needs Database container name below instead "
+                    "of Database host."),
+        Field_("db_container", "Database container name (only if using docker exec)", required=False,
+               placeholder="authentik-postgresql-1"),
+        Field_("db_host", "Database host (reachable directly from PUMA - ignored if using docker exec)",
+               required=False, placeholder="10.0.0.161"),
         Field_("db_name", "Database name", required=False),
         Field_("db_user", "Database user", required=False),
         Field_("db_password", "Database password", type="password", required=False),
@@ -562,6 +570,77 @@ class SshFilesAndDbDump(BackupStrategy):
         to survive cmd.exe treating the argument as one token."""
         return '"' + s.replace('"', '\\"') + '"'
 
+    def _ssh_base_cmd(self, host: str, port: str) -> list[str]:
+        """The connection flags shared by every ssh invocation this
+        strategy makes - factored out so the file-backup step and the
+        docker-exec-over-ssh DB dump can't quietly drift apart on how
+        they connect."""
+        known_hosts = SSH_DIR / "known_hosts"
+        cmd = [
+            "ssh", "-p", str(port),
+            "-o", "BatchMode=yes",  # fail fast instead of hanging on a password prompt
+            "-o", "StrictHostKeyChecking=accept-new",
+            "-o", f"UserKnownHostsFile={known_hosts}",
+        ]
+        # puma's $HOME (/nonexistent) means ssh won't find a key on its
+        # own either - point it at whichever of the usual key filenames
+        # actually exist under SSH_DIR instead of guessing one.
+        for name in ("id_ed25519", "id_ecdsa", "id_rsa"):
+            candidate = SSH_DIR / name
+            if candidate.exists():
+                cmd += ["-i", str(candidate)]
+        return cmd
+
+    def _dump_db_via_ssh_docker(
+        self, host: str, port: str, container: str, engine: str,
+        name: str, user: str, password: str, out_path: Path, log: list[str],
+    ) -> None:
+        """Runs the dump *inside* a container on the remote host, over the
+        same SSH connection used for the file backup - for a database with
+        no port exposed to the network at all (Authentik's Postgres, run
+        this way, has none). The password has to be embedded directly in
+        the remote command string here (there's no local subprocess env=
+        to hide it in the way _dump_db's direct-connection path can, since
+        this whole command is itself just one argument being sent to a
+        remote shell) - so this builds two versions of that inner command:
+        the real one, and a redacted one for the log, and never lets the
+        real one reach the log."""
+        if not container:
+            raise BackupFailed("db_container is required when db_via_docker is set")
+        if engine == "postgres":
+            real_inner = f"docker exec"
+            redacted_inner = f"docker exec"
+            if password:
+                real_inner += f" -e PGPASSWORD={shlex.quote(password)}"
+                redacted_inner += " -e PGPASSWORD=***"
+            real_inner += f" {shlex.quote(container)} pg_dump -U {shlex.quote(user)} -Fc -d {shlex.quote(name)}"
+            redacted_inner += f" {shlex.quote(container)} pg_dump -U {shlex.quote(user)} -Fc -d {shlex.quote(name)}"
+        elif engine == "mysql":
+            real_inner = "docker exec"
+            redacted_inner = "docker exec"
+            if password:
+                real_inner += f" -e MYSQL_PWD={shlex.quote(password)}"
+                redacted_inner += " -e MYSQL_PWD=***"
+            real_inner += f" {shlex.quote(container)} mysqldump -u {shlex.quote(user)} {shlex.quote(name)}"
+            redacted_inner += f" {shlex.quote(container)} mysqldump -u {shlex.quote(user)} {shlex.quote(name)}"
+        else:
+            raise BackupFailed(f"unknown db_engine {engine!r}")
+
+        base = self._ssh_base_cmd(host, port)
+        real_cmd = base + [f"{self.config.get('ssh_user', '')}@{host}", real_inner]
+        log.append("$ " + " ".join(shlex.quote(c) for c in base) +
+                    f" {self.config.get('ssh_user', '')}@{host} " + redacted_inner)
+
+        with open(out_path, "wb") as fh:
+            proc = subprocess.run(real_cmd, stdout=fh, stderr=subprocess.PIPE, timeout=1800)
+        if proc.stderr:
+            log.append(_tail(proc.stderr.decode("utf-8", "replace")))
+        if proc.returncode != 0:
+            raise BackupFailed(
+                f"docker exec dump exited {proc.returncode} on {host} — see log for details"
+            )
+        log.append(f"{out_path.name}: {_human_size(out_path.stat().st_size)}")
+
     def run(self, dest_dir: Path, log: list[str]) -> BackupResult:
         host = self.config.get("ssh_host", "")
         user = self.config.get("ssh_user", "")
@@ -579,20 +658,7 @@ class SshFilesAndDbDump(BackupStrategy):
         for e in excludes:
             remote_cmd += " --exclude=" + quote(e)
         remote_cmd += " " + " ".join(quote(p) for p in paths)
-        known_hosts = SSH_DIR / "known_hosts"
-        ssh_cmd = [
-            "ssh", "-p", str(port),
-            "-o", "BatchMode=yes",  # fail fast instead of hanging on a password prompt
-            "-o", "StrictHostKeyChecking=accept-new",
-            "-o", f"UserKnownHostsFile={known_hosts}",
-        ]
-        # puma's $HOME (/nonexistent) means ssh won't find a key on its
-        # own either - point it at whichever of the usual key filenames
-        # actually exist under SSH_DIR instead of guessing one.
-        for name in ("id_ed25519", "id_ecdsa", "id_rsa"):
-            candidate = SSH_DIR / name
-            if candidate.exists():
-                ssh_cmd += ["-i", str(candidate)]
+        ssh_cmd = self._ssh_base_cmd(host, port)
         ssh_cmd += [f"{user}@{host}", remote_cmd]
         out_path = dest_dir / "files.tar.gz"
         self._run(ssh_cmd, log, stdout_file=out_path, timeout=3600)
@@ -601,14 +667,22 @@ class SshFilesAndDbDump(BackupStrategy):
         engine = self.config.get("db_engine") or "none"
         if engine != "none":
             ext = "dump" if engine == "postgres" else "sql"
-            self._dump_db(
-                engine,
-                self.config.get("db_host", "") or host,
-                self.config.get("db_name", ""),
-                self.config.get("db_user", ""),
-                self.config.get("db_password", ""),
-                dest_dir / f"database.{ext}", log,
-            )
+            if self.config.get("db_via_docker") == "on":
+                self._dump_db_via_ssh_docker(
+                    host, port, self.config.get("db_container", ""), engine,
+                    self.config.get("db_name", ""), self.config.get("db_user", ""),
+                    self.config.get("db_password", ""),
+                    dest_dir / f"database.{ext}", log,
+                )
+            else:
+                self._dump_db(
+                    engine,
+                    self.config.get("db_host", "") or host,
+                    self.config.get("db_name", ""),
+                    self.config.get("db_user", ""),
+                    self.config.get("db_password", ""),
+                    dest_dir / f"database.{ext}", log,
+                )
         return BackupResult(success=True, size_bytes=_dir_size(dest_dir))
 
 
