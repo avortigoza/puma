@@ -4,18 +4,21 @@ Draft Upgrade/Restore procedure content for pasting into each app's
 Edit page in PUMA (Applications → *App* → Edit → Procedures). Review
 and correct before pasting — these are drafts, not final content.
 
-**Formatting note:** commands are written as single-line, inline code
-(single backticks) rather than nested multi-line fenced blocks. This
-is deliberate, not a style preference — PUMA's Markdown renderer
-(Python-Markdown) requires exact leading-whitespace indentation to
-keep a code block "attached" to its numbered list item, and that
-whitespace is very easy to lose when copying text through a browser's
-rendered view and a clipboard. When it's lost, the renderer treats the
-code block as ending the list, and restarts numbering at 1 for
-whatever comes after — which is exactly what happened with the first,
-differently-formatted draft of this file. The inline-command format
-below has no such dependency and is not vulnerable to that failure
-mode.
+**Formatting note:** every command here sits in its own standalone
+fenced code block, never nested inside a numbered list item. PUMA's
+Markdown renderer needs exact leading-whitespace indentation to keep a
+code block "attached" to a list item, and that whitespace is easy to
+lose when copying through a browser's rendered view and a clipboard -
+losing it makes the renderer treat the code block as ending the list
+and restart numbering at 1 for whatever follows. Standalone blocks
+between plain paragraphs have no such dependency and render reliably
+either way.
+
+**Security note:** these are viewable by any logged-in PUMA user, not
+just admins - the actual database passwords for each app live in that
+app's Backup config, which only admins can open. Procedures reference
+credentials as "see this app's Backup config" rather than restating
+the real password in a page more people can read.
 
 ---
 
@@ -61,6 +64,8 @@ Restores from a PUMA backup (`files.tar.gz` + `database.dump`) for this server. 
 
 **Note:** this backup does not include the system nginx config that proxies to Apache. On this same server that's already in place and untouched — this only matters if restoring onto a different server.
 
+**Note:** production also has a richer, environment-aware version of this procedure already saved directly in PUMA (with a staging-clone reference table and a reusable backup script) - if that's present, prefer it over this simpler draft.
+
 ```
 
 ---
@@ -70,27 +75,93 @@ Restores from a PUMA backup (`files.tar.gz` + `database.dump`) for this server. 
 ### Upgrade Procedure
 
 ```markdown
-1. Trigger a PUMA backup (Backup Now) and confirm Success before touching anything.
-2. Check the official GitLab upgrade path at gitlab-com.gitlab.io/support/toolbox/upgrade-path/ — GitLab enforces which versions you're allowed to hop between in one jump. Skipping this step is the single most common way a GitLab upgrade breaks; do not go straight to the latest version if the tool says you need intermediate stops.
-3. Read the release notes for every version in that hop sequence for background migrations or manual steps.
-4. For each hop in sequence, run: `sudo apt update && sudo apt install gitlab-ce=<version>-ce.0 && sudo gitlab-ctl reconfigure`
-5. After the final hop, confirm health: `sudo gitlab-ctl status` and `sudo gitlab-rake gitlab:check SANITIZE=true`
-6. Check Admin Area → Monitoring → Background Migrations — wait for these to finish before considering the upgrade done.
-7. Log in, spot-check a project, confirm CI/CD still runs.
+## Reference
+
+- Host: this server (mss-serv-cl1), same as PUMA
+- Config: `/etc/gitlab/gitlab.rb`
+- Secrets: `/etc/gitlab/gitlab-secrets.json` — required to decrypt any backup; never regenerate this file
+- Backup output: `/var/opt/gitlab/backups/`
+- PUMA triggers backups via a dedicated `gitlab-backup.service` systemd unit (not run directly by PUMA — GitLab's own backup tool needs full root, which PUMA's sandboxed service account deliberately doesn't have)
+
+## Before starting
+
+Trigger a PUMA backup (Backup Now) and confirm **Success** before touching anything.
+
+Check the official GitLab upgrade path at gitlab-com.gitlab.io/support/toolbox/upgrade-path/ before picking a target version — GitLab enforces which versions you're allowed to hop between in one jump, and going straight to the latest release is the single most common way an upgrade breaks. Read the release notes for every version in the resulting hop sequence, watching for required manual steps or background migrations.
+
+## Upgrade steps
+
+Run for each hop in the sequence:
+
+```
+sudo apt update
+sudo apt install gitlab-ce=<version>-ce.0
+sudo gitlab-ctl reconfigure
+```
+
+After the final hop, confirm health:
+
+```
+sudo gitlab-ctl status
+sudo gitlab-rake gitlab:check SANITIZE=true
+```
+
+## Verify
+
+- Admin Area → Monitoring → Background Migrations — wait for these to finish before considering the upgrade done.
+- Log in, spot-check a project, confirm CI/CD still runs.
 
 ```
 
 ### Restore Procedure
 
 ```markdown
-Restores from a PUMA backup (the `gitlab-backup` archive, plus `gitlab.rb` and `gitlab-secrets.json`). Requires root.
+## Reference
 
-1. Copy `gitlab.rb` and `gitlab-secrets.json` back into `/etc/gitlab/` — this must happen before the restore step, not after: `sudo cp gitlab.rb /etc/gitlab/gitlab.rb && sudo cp gitlab-secrets.json /etc/gitlab/gitlab-secrets.json`
-2. Copy the backup tar into GitLab's own backup directory: `sudo cp <timestamp>_gitlab_backup.tar /var/opt/gitlab/backups/`
-3. Stop the services that touch the database: `sudo gitlab-ctl stop puma && sudo gitlab-ctl stop sidekiq`
-4. Restore: `sudo gitlab-backup restore BACKUP=<timestamp>`
-5. Reconfigure and restart everything: `sudo gitlab-ctl reconfigure && sudo gitlab-ctl restart`
-6. Verify: run `sudo gitlab-rake gitlab:check SANITIZE=true`, then log in and spot-check a project.
+Restores from a PUMA backup: the `gitlab-backup` archive, plus `gitlab.rb` and `gitlab-secrets.json` (both included specifically because GitLab's own backup tool excludes them but requires them to restore). Requires root.
+
+## Restore steps
+
+Copy the config and secrets back into place first — this must happen before the restore step runs, not after:
+
+```
+sudo cp gitlab.rb /etc/gitlab/gitlab.rb
+sudo cp gitlab-secrets.json /etc/gitlab/gitlab-secrets.json
+```
+
+Copy the backup tar into GitLab's own backup directory:
+
+```
+sudo cp <timestamp>_gitlab_backup.tar /var/opt/gitlab/backups/
+```
+
+Stop the services that touch the database:
+
+```
+sudo gitlab-ctl stop puma
+sudo gitlab-ctl stop sidekiq
+```
+
+Restore:
+
+```
+sudo gitlab-backup restore BACKUP=<timestamp>
+```
+
+Reconfigure and restart everything:
+
+```
+sudo gitlab-ctl reconfigure
+sudo gitlab-ctl restart
+```
+
+## Verify
+
+```
+sudo gitlab-rake gitlab:check SANITIZE=true
+```
+
+Then log in and spot-check a project.
 
 ```
 
@@ -101,26 +172,80 @@ Restores from a PUMA backup (the `gitlab-backup` archive, plus `gitlab.rb` and `
 ### Upgrade Procedure
 
 ```markdown
-1. Trigger a PUMA backup and confirm success.
-2. Check XWiki's release notes for the target version — especially whether any installed extensions need updating for compatibility.
-3. In `~/xwiki-docker`, update the image tag in `docker-compose.yml` to the target version.
-4. Pull and recreate: `docker compose pull && docker compose up -d`
-5. XWiki runs its own upgrade/distribution wizard automatically on first access after the version bump — visit the site and follow any prompts it shows.
-6. Verify: log in, check a page, check the Extension Manager for anything flagged as incompatible.
+## Reference
+
+- Host: this server (mss-serv-cl1), same as PUMA
+- Compose project: `~/xwiki-docker`
+- Containers: `xwiki-docker-xwiki-1` (app, published on port 8888), `xwiki-docker-db-1` (Postgres)
+- Database credentials: see this app's Backup config in PUMA (Applications → XWiki → Edit → Backups)
+
+## Before starting
+
+Trigger a PUMA backup and confirm success. Check XWiki's release notes for the target version — especially whether any installed extensions need updating for compatibility.
+
+## Upgrade steps
+
+In `~/xwiki-docker`, update the image tag in `docker-compose.yml` to the target version, then pull and recreate:
+
+```
+docker compose pull
+docker compose up -d
+```
+
+XWiki runs its own upgrade/distribution wizard automatically on first access after the version bump — visit the site and follow any prompts it shows.
+
+## Verify
+
+- Log in, check a page.
+- Check the Extension Manager for anything flagged as incompatible.
 
 ```
 
 ### Restore Procedure
 
 ```markdown
-Restores from a PUMA backup (two volume archives, a database dump, and `docker-compose.yml`).
+## Reference
 
-1. Stop the stack (in `~/xwiki-docker`): `docker compose down`
-2. Restore the wiki-data volume: `docker run --rm -v xwiki-docker_xwiki-data:/vol -v $(pwd):/backup alpine sh -c "rm -rf /vol/* && tar xzf /backup/xwiki-docker_xwiki-data.tar.gz -C /vol"`
-3. Restore the postgres-data volume the same way: `docker run --rm -v xwiki-docker_xwiki-postgres-data:/vol -v $(pwd):/backup alpine sh -c "rm -rf /vol/* && tar xzf /backup/xwiki-docker_xwiki-postgres-data.tar.gz -C /vol"`
-4. The volume restore above already restores the database itself (it's the raw data directory) — `database.dump` is kept as a portable fallback, useful mainly if migrating to a different Postgres version. Only use it if the volume restore doesn't work: start just the db with `docker compose up -d db`, then `docker exec -i xwiki-docker-db-1 pg_restore -U xwiki -d xwiki --clean --if-exists < database.dump`
-5. Start everything: `docker compose up -d`
-6. Verify: load the site, log in, check a page.
+Restores from a PUMA backup: two Docker volume archives, a database dump, and `docker-compose.yml`.
+
+## Restore steps
+
+Stop the stack (in `~/xwiki-docker`):
+
+```
+docker compose down
+```
+
+Restore the wiki-data volume:
+
+```
+docker run --rm -v xwiki-docker_xwiki-data:/vol -v $(pwd):/backup alpine \
+  sh -c "rm -rf /vol/* && tar xzf /backup/xwiki-docker_xwiki-data.tar.gz -C /vol"
+```
+
+Restore the postgres-data volume the same way:
+
+```
+docker run --rm -v xwiki-docker_xwiki-postgres-data:/vol -v $(pwd):/backup alpine \
+  sh -c "rm -rf /vol/* && tar xzf /backup/xwiki-docker_xwiki-postgres-data.tar.gz -C /vol"
+```
+
+The volume restore above already restores the database itself (it's the raw Postgres data directory) — `database.dump` is kept as a portable fallback, useful mainly if migrating to a different Postgres version. Only use it if the volume restore doesn't work:
+
+```
+docker compose up -d db
+docker exec -i xwiki-docker-db-1 pg_restore -U xwiki -d xwiki --clean --if-exists < database.dump
+```
+
+Start everything:
+
+```
+docker compose up -d
+```
+
+## Verify
+
+Load the site, log in, check a page.
 
 ```
 
@@ -131,25 +256,79 @@ Restores from a PUMA backup (two volume archives, a database dump, and `docker-c
 ### Upgrade Procedure
 
 ```markdown
-1. Trigger a PUMA backup and confirm success.
-2. Check Authentik's release notes for the target version for any required upgrade-path notes or breaking changes.
-3. In `/var/www/authentik`, update the image tag(s) in `docker-compose.yml` (or `.env` if a tag variable is used there).
-4. Pull and recreate: `docker compose pull && docker compose up -d` — database migrations run automatically on startup.
-5. Verify: log into the admin interface, check System → System Tasks for any failed background tasks.
+## Reference
+
+- Host: separate server, 10.0.0.161 (same box as GLPI)
+- Compose project: `/var/www/authentik`
+- Containers: `authentik-server-1`, `authentik-worker-1`, `authentik-postgresql-1`, `authentik-redis-1`
+- Media/templates: local bind mounts (`/var/www/authentik/media`, `/var/www/authentik/custom-templates`) — no S3 configured
+- `.env` holds `AUTHENTIK_SECRET_KEY` and the database password — required for a real restore, treat as sensitive
+
+## Before starting
+
+Trigger a PUMA backup and confirm success. Check Authentik's release notes for the target version for any required upgrade-path notes or breaking changes.
+
+## Upgrade steps
+
+In `/var/www/authentik`, update the image tag(s) in `docker-compose.yml` (or `.env` if a tag variable is used there), then pull and recreate:
+
+```
+docker compose pull
+docker compose up -d
+```
+
+Database migrations run automatically on startup.
+
+## Verify
+
+Log into the admin interface, check System → System Tasks for any failed background tasks.
 
 ```
 
 ### Restore Procedure
 
 ```markdown
-Restores from a PUMA backup (files + a docker-exec database dump).
+## Reference
 
-1. Stop the stack (in `/var/www/authentik`): `docker compose down`
-2. Extract the files archive back into place: `tar xzf files.tar.gz -C /var/www/authentik --strip-components=2` (adjust `--strip-components` if needed so `docker-compose.yml`, `.env`, `media/`, and `custom-templates/` land directly in `/var/www/authentik`, not nested inside extra folders)
-3. Start just the database: `docker compose up -d postgresql`
-4. Restore the dump: `docker exec -i authentik-postgresql-1 pg_restore -U authentik -d authentik --clean --if-exists < database.dump`
-5. Start everything: `docker compose up -d`
-6. Verify: log into the admin interface, confirm existing users/apps are visible.
+Restores from a PUMA backup: files (`docker-compose.yml`, `.env`, `media/`, `custom-templates/`) plus a docker-exec database dump, all pulled over SSH from 10.0.0.161.
+
+## Restore steps
+
+Stop the stack (in `/var/www/authentik`):
+
+```
+docker compose down
+```
+
+Extract the files archive back into place:
+
+```
+tar xzf files.tar.gz -C /var/www/authentik --strip-components=2
+```
+
+(adjust `--strip-components` if needed so `docker-compose.yml`, `.env`, `media/`, and `custom-templates/` land directly in `/var/www/authentik`, not nested inside extra folders)
+
+Start just the database:
+
+```
+docker compose up -d postgresql
+```
+
+Restore the dump:
+
+```
+docker exec -i authentik-postgresql-1 pg_restore -U authentik -d authentik --clean --if-exists < database.dump
+```
+
+Start everything:
+
+```
+docker compose up -d
+```
+
+## Verify
+
+Log into the admin interface, confirm existing users/apps are visible.
 
 ```
 
@@ -160,33 +339,64 @@ Restores from a PUMA backup (files + a docker-exec database dump).
 ### Upgrade Procedure
 
 ```markdown
-## Pre-Upgrade Checklist
-1. Trigger a PUMA backup (Backup Now) as an additional safety net alongside the manual backup below.
-2. Check for active sessions. Open the Stanza interface and check for any in progress. If found, notify the owner or the concerned group before proceeding.
-3. Stop the service and retrieve the license key: open services.msc, find Telestream Stanza Service, right-click, Stop, wait for status to show Stopped. Then open `http://localhost:7000`, click the license key icon (top-right), copy and save the key securely, then click Deactivate to release it before uninstalling.
-4. Manual backup. After the service is stopped, copy `stanza.db`, `appsettings.general.json`, and `appsettings.locations.json` from `C:\ProgramData\Telestream\Stanza` to `D:\STANZA_SHARE\POSTMAMS\BACKUP\stanza-mmddyy` (e.g. stanza-083125 for Aug 31, 2025).
-5. Uninstall the current version — Settings → Apps → Installed Apps → search "Telestream Stanza" → the ⋮ menu → Uninstall → follow prompts.
+## Reference
 
-## Upgrade Steps
-6. Get the installer, either downloading from telestream.net/telestream-support/stanza/support.htm, or using the local copy at `D:\STANZA_SHARE\POSTMAMS\Stanza Installer\` (extract the ZIP to a temp folder first).
-7. Run the installer, accept the license agreement, complete installation.
+- Config/data: `C:\ProgramData\Telestream\Stanza` (`stanza.db`, `appsettings.general.json`, `appsettings.locations.json`)
+- Manual backup location: `D:\STANZA_SHARE\POSTMAMS\BACKUP\stanza-mmddyy`
+- Installer share: `D:\STANZA_SHARE\POSTMAMS\Stanza Installer\`
+- License management: `http://localhost:7000`
 
-## Post-Upgrade Steps
-8. Activate the license — `http://localhost:7000` → license key icon → enter the key → icon turns green once activated.
-9. Restore database and config: stop the Telestream Stanza Service again via services.msc, copy `stanza.db`, `appsettings.general.json`, `appsettings.locations.json` from your dated backup folder back to `C:\ProgramData\Telestream\Stanza`, then restart the service.
-10. Verify functionality: test transcription, project creation, and Stanza AI features; confirm project files and user data are up to date; check logs for errors or warnings; test in the actual bay for AI automation.
+## Pre-upgrade checklist
+
+Check for active sessions in the Stanza interface — if any are found, notify the owner or the concerned group before proceeding.
+
+Stop the service and retrieve the license key: open `services.msc`, find **Telestream Stanza Service**, right-click → Stop, wait for status to show Stopped. Then open `http://localhost:7000`, click the license key icon (top-right), copy and save the key securely, then click Deactivate to release it before uninstalling.
+
+Trigger a PUMA backup (Backup Now) as an additional safety net, then take the manual backup too — copy `stanza.db`, `appsettings.general.json`, and `appsettings.locations.json` from `C:\ProgramData\Telestream\Stanza` to a dated folder under `D:\STANZA_SHARE\POSTMAMS\BACKUP\` (e.g. `stanza-083125` for Aug 31, 2025).
+
+Uninstall the current version — Settings → Apps → Installed Apps → search "Telestream Stanza" → the ⋮ menu → Uninstall → follow prompts.
+
+## Upgrade steps
+
+Get the installer, either downloading it from telestream.net/telestream-support/stanza/support.htm, or using the local copy on the installer share (extract the ZIP to a temp folder first). Run the installer, accept the license agreement, complete installation.
+
+## Post-upgrade steps
+
+Activate the license — `http://localhost:7000` → license key icon → enter the key → icon turns green once activated.
+
+Restore database and config: stop the Telestream Stanza Service again via `services.msc`, copy the three files back from your dated backup folder to `C:\ProgramData\Telestream\Stanza`, then restart the service.
+
+## Verify
+
+- Test transcription, project creation, and Stanza AI features.
+- Confirm project files and user data are up to date.
+- Check logs for errors or warnings.
+- Test in the actual bay for AI automation.
 
 ```
 
 ### Restore Procedure
 
 ```markdown
-Restores from a PUMA backup (`stanza.db` + two config JSON files).
+## Reference
 
-1. Stop the Stanza Windows service (check the exact service name in services.msc, or run `net stop <servicename>`).
-2. Extract the backup archive to `C:\` (the paths inside were stored with the drive letter stripped, so extracting at the root puts everything back under `C:\ProgramData\Telestream\Stanza\` correctly): `tar xzf files.tar.gz -C C:\`
-3. Restart the Stanza service.
-4. Verify: the app is reachable and shows the expected configuration/data.
+Restores from a PUMA backup: `stanza.db` plus `appsettings.general.json` and `appsettings.locations.json`, from `C:\ProgramData\Telestream\Stanza`.
+
+## Restore steps
+
+Stop the Stanza Windows service (check the exact service name in `services.msc`, or run `net stop <servicename>`).
+
+Extract the backup archive to `C:\` — the paths inside were stored with the drive letter stripped, so extracting at the root puts everything back under `C:\ProgramData\Telestream\Stanza\` correctly:
+
+```
+tar xzf files.tar.gz -C C:\
+```
+
+Restart the Stanza service.
+
+## Verify
+
+The app is reachable and shows the expected configuration/data.
 
 ```
 
@@ -197,27 +407,67 @@ Restores from a PUMA backup (`stanza.db` + two config JSON files).
 ### Upgrade Procedure
 
 ```markdown
-1. Trigger a PUMA backup (Backup Now) and confirm Success.
-2. Read the release notes for the target version — check for required PHP/MySQL version bumps and plugin compatibility.
-3. Download the new release, extract it to a temporary directory.
-4. Preserve your existing config and files directories — copy them from the current install into the new release's directory (typically `files/` and the `.env`/`config_db.php` config).
-5. Put the current `/var/www/glpi` aside (rename, don't delete) and move the new release into place.
-6. GLPI detects the version mismatch automatically — either visit the site to trigger the web-based migration wizard, or run it via CLI: `php bin/console db:update`
-7. Verify: log in, check a ticket, check that plugins still show as active under Setup → Plugins.
-8. Once confirmed working, remove the old renamed install.
+## Reference
+
+- Host: separate server, 10.0.0.161 (same box as Authentik)
+- Code root: `/var/www/glpi`
+- Database: MySQL/MariaDB — see this app's Backup config in PUMA for credentials
+
+## Before starting
+
+Trigger a PUMA backup (Backup Now) and confirm Success. Read the release notes for the target version — check for required PHP/MySQL version bumps and plugin compatibility.
+
+## Upgrade steps
+
+Download the new release and extract it to a temporary directory. Preserve your existing config and files directories — copy them from the current install into the new release's directory (typically `files/` and the `.env`/`config_db.php` config). Put the current `/var/www/glpi` aside (rename, don't delete) and move the new release into place.
+
+GLPI detects the version mismatch automatically — either visit the site to trigger the web-based migration wizard, or run it via CLI:
+
+```
+php bin/console db:update
+```
+
+## Verify
+
+- Log in, check a ticket.
+- Check that plugins still show as active under Setup → Plugins.
+- Once confirmed working, remove the old renamed install.
 
 ```
 
 ### Restore Procedure
 
 ```markdown
-Restores from a PUMA backup (`files.tar.gz` from `/var/www/glpi`, and `database.sql`, a MySQL/MariaDB dump).
+## Reference
 
-1. Extract the files back into place on the GLPI server. Check the archive's structure first with `tar tzf files.tar.gz | head`, then extract so the contents land directly in `/var/www/glpi`, not nested inside an extra folder.
-2. Restore the database (plain SQL dump — restore with the client, not mysqldump): `mysql -u <db_user> -p <db_name> < database.sql` (use the same database name/user GLPI's `config_db.php` and PUMA's backup config both point at).
-3. Confirm file ownership/permissions match what the web server expects: `sudo chown -R www-data:www-data /var/www/glpi`
-4. Verify: log in, check a ticket, check Setup → General to confirm settings loaded correctly.
+Restores from a PUMA backup: `files.tar.gz` from `/var/www/glpi`, and `database.sql` (a plain MySQL/MariaDB dump), pulled over SSH from 10.0.0.161. Session files (`_sessions`) are deliberately excluded — GLPI regenerates them on its own.
 
-**Note:** session files (`_sessions`) are deliberately excluded from this backup — nothing to restore there, GLPI regenerates them on its own.
+## Restore steps
+
+Check the archive's structure first:
+
+```
+tar tzf files.tar.gz | head
+```
+
+Extract so the contents land directly in `/var/www/glpi`, not nested inside an extra folder.
+
+Restore the database (a plain SQL dump — restore with the client, not `mysqldump`):
+
+```
+mysql -u <db_user> -p <db_name> < database.sql
+```
+
+(use the same database name/user GLPI's `config_db.php` and PUMA's backup config both point at)
+
+Confirm file ownership/permissions match what the web server expects:
+
+```
+sudo chown -R www-data:www-data /var/www/glpi
+```
+
+## Verify
+
+Log in, check a ticket, check Setup → General to confirm settings loaded correctly.
 
 ```
