@@ -30,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bleach
 import markdown as markdown_lib
 from fastapi import BackgroundTasks, Depends, FastAPI, Form, HTTPException, Request
+from pydantic import BaseModel, Field as PydanticField
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -115,6 +116,35 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 app = FastAPI(title="PUMA")
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, same_site="lax")
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+
+# Separate sub-app for the actual JSON API, given its own OpenAPI/Swagger
+# docs. Deliberately not just adding docs to the main `app`: that would
+# mix the one real API endpoint into a Swagger page alongside every HTML
+# page route (dozens of them) with no clean way to hide them all short of
+# marking each individually. A mounted sub-app gets its own independent
+# route list and schema, so only endpoints actually meant to be an API
+# ever show up here - future API endpoints just get added to api_app,
+# no per-page bookkeeping required to keep them out of it.
+#
+# Mounted at /api/v1 specifically (not the shorter /api) because
+# /api/backup-status and /api/email-events already exist as internal
+# polling endpoints on the main app - Starlette's mount matches by path
+# prefix, so mounting at the broader /api would have silently shadowed
+# those two. /api/v1/dashboard keeps its exact existing external URL
+# either way (mount prefix + the sub-app's own /dashboard route).
+api_app = FastAPI(
+    title="PUMA API",
+    description=(
+        "Read-only status API. Deliberately unauthenticated by design - "
+        "relies entirely on network-level restriction (e.g. a firewall "
+        "rule) rather than a login, so treat reachability to this port "
+        "as the actual access control. Never returns credentials or "
+        "tokens, even though those live in the same database rows this "
+        "reads from."
+    ),
+    version="1.0.0",
+)
+app.mount("/api/v1", api_app)
 
 
 # --------------------------------------------------------------------------
@@ -1211,7 +1241,45 @@ def _app_status(a: MonitoredApp) -> str:
     return "up_to_date"
 
 
-@app.get("/api/v1/dashboard")
+class BackupInfoOut(BaseModel):
+    configured: bool = PydanticField(description="Whether this app has a backup strategy configured at all.")
+    schedule_enabled: Optional[bool] = PydanticField(default=None, description="Only present when configured=true.")
+    last_backup_at: Optional[str] = PydanticField(default=None, description="ISO 8601. Any backup, manual or scheduled.")
+    last_backup_status: Optional[str] = None
+    last_successful_size_bytes: Optional[int] = PydanticField(default=None, description="Size of the most recent successful backup run.")
+
+
+class AppStatusOut(BaseModel):
+    name: str
+    category: Optional[str] = None
+    source_type: str = PydanticField(description="The adapter key used for this app's upstream version check.")
+    instance_url: Optional[str] = None
+    installed_version: Optional[str] = None
+    latest_version: Optional[str] = None
+    status: str = PydanticField(description="One of: not_checked, unknown, update_available, up_to_date.")
+    last_checked_at: Optional[str] = PydanticField(default=None, description="ISO 8601.")
+    last_error: Optional[str] = None
+    backup: BackupInfoOut
+
+
+class DashboardSummaryOut(BaseModel):
+    apps_monitored: int
+    up_to_date: int
+    updates_available: int
+    last_full_check_at: Optional[str] = PydanticField(default=None, description="ISO 8601, of the most recent scheduled full sweep.")
+
+
+class DashboardResponse(BaseModel):
+    summary: DashboardSummaryOut
+    apps: list[AppStatusOut]
+
+
+@api_app.get(
+    "/dashboard",
+    response_model=DashboardResponse,
+    summary="Dashboard & per-app status",
+    description="KPI summary plus per-app version/status/backup info for every monitored app.",
+)
 def api_dashboard():
     with Session(engine) as session:
         apps = session.exec(select(MonitoredApp).order_by(MonitoredApp.name)).all()
