@@ -23,6 +23,7 @@ import shlex
 import shutil
 import subprocess
 import tarfile
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -143,6 +144,40 @@ class BackupStrategy(ABC):
                 f"`{cmd[0]}` exited {proc.returncode} — see log for details"
             )
         return proc
+
+    def _run_with_retry(
+        self,
+        cmd: list[str],
+        log: list[str],
+        attempts: int = 3,
+        delay_seconds: float = 10.0,
+        cwd: Optional[str] = None,
+        env: Optional[dict[str, str]] = None,
+        timeout: int = 1800,
+        stdout_file: Optional[Path] = None,
+    ) -> subprocess.CompletedProcess:
+        """Same contract as _run, but retries on failure - for a step
+        that's known to fail transiently (e.g. a remote file briefly
+        locked by the app it's being backed up from) rather than on a
+        real, persistent error. Each failed attempt's own log lines stay
+        in the log (so a backup that only succeeds on attempt 2 or 3
+        still shows what the earlier attempt(s) hit), with a one-line
+        marker between attempts; only the final attempt's exception
+        propagates. A stdout_file target is truncated and rewritten by
+        each attempt, since a half-written file from a failed attempt
+        isn't a valid base to append to."""
+        last_error: Optional[BackupFailed] = None
+        for attempt in range(1, attempts + 1):
+            if attempt > 1:
+                log.append(f"Retrying (attempt {attempt}/{attempts}) after {delay_seconds:.0f}s...")
+                time.sleep(delay_seconds)
+            try:
+                return self._run(cmd, log, cwd=cwd, env=env, timeout=timeout, stdout_file=stdout_file)
+            except BackupFailed as exc:
+                last_error = exc
+                log.append(f"Attempt {attempt}/{attempts} failed: {exc}")
+        assert last_error is not None
+        raise last_error
 
     def _tar_paths(self, paths: list[str], out_path: Path, log: list[str]) -> None:
         missing = [p for p in paths if not os.path.exists(p)]
@@ -661,7 +696,13 @@ class SshFilesAndDbDump(BackupStrategy):
         ssh_cmd = self._ssh_base_cmd(host, port)
         ssh_cmd += [f"{user}@{host}", remote_cmd]
         out_path = dest_dir / "files.tar.gz"
-        self._run(ssh_cmd, log, stdout_file=out_path, timeout=3600)
+        # Retried: this step has been seen to fail transiently on a
+        # remote Windows host (e.g. Stanza GMA) with a locking error on
+        # one file (tar.exe reading a file the app itself has briefly
+        # open for a write) even though an immediately-following manual
+        # run succeeds against the same files - a real but short-lived
+        # lock, not a persistent problem with the path or connection.
+        self._run_with_retry(ssh_cmd, log, attempts=3, delay_seconds=15, stdout_file=out_path, timeout=3600)
         log.append(f"{out_path.name}: {_human_size(out_path.stat().st_size)}")
 
         engine = self.config.get("db_engine") or "none"
