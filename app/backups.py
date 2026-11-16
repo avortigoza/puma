@@ -707,10 +707,11 @@ class SshFilesAndDbDump(BackupStrategy):
         paths_json = json.dumps(paths).replace("'", "''")
         script = f"""
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
 $snap = Join-Path $env:TEMP '{snap_name}'
 New-Item -ItemType Directory -Force -Path $snap | Out-Null
 function Copy-Shared([string]$src) {{
-    $rel = $src -replace '^[A-Za-z]:\\', ''
+    if ($src.Length -gt 2 -and $src[1] -eq ':') {{ $rel = $src.Substring(3) }} else {{ $rel = $src }}
     $dst = Join-Path $snap $rel
     New-Item -ItemType Directory -Force -Path (Split-Path $dst) | Out-Null
     $s = [IO.File]::Open($src, 'Open', 'Read', 'ReadWrite,Delete')
@@ -719,15 +720,21 @@ function Copy-Shared([string]$src) {{
         try {{ $s.CopyTo($d) }} finally {{ $d.Close() }}
     }} finally {{ $s.Close() }}
 }}
-$paths = '{paths_json}' | ConvertFrom-Json
-foreach ($p in $paths) {{
-    if (Test-Path -LiteralPath $p -PathType Container) {{
-        Get-ChildItem -LiteralPath $p -Recurse -File -Force | ForEach-Object {{ Copy-Shared $_.FullName }}
-    }} else {{
-        Copy-Shared $p
+try {{
+    $paths = '{paths_json}' | ConvertFrom-Json
+    foreach ($p in $paths) {{
+        if (Test-Path -LiteralPath $p -PathType Container) {{
+            Get-ChildItem -LiteralPath $p -Recurse -File -Force | ForEach-Object {{ Copy-Shared $_.FullName }}
+        }} else {{
+            Copy-Shared $p
+        }}
     }}
+    Write-Output "PUMA_SNAPSHOT_DIR=$snap"
+}} catch {{
+    Remove-Item -LiteralPath $snap -Recurse -Force -ErrorAction SilentlyContinue
+    [Console]::Error.WriteLine("Snapshot failed: " + $_.Exception.Message)
+    exit 1
 }}
-Write-Output "PUMA_SNAPSHOT_DIR=$snap"
 """
         cmd = base + [target, "powershell -NoProfile -NonInteractive -EncodedCommand " + self._ps_encoded(script)]
         proc = self._run(cmd, log, timeout=1800,
