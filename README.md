@@ -279,6 +279,23 @@ given app is deployed — expect to grant one or more of:
 None of these are granted automatically — PUMA never elevates its own
 privileges.
 
+**Windows apps that keep their files open (e.g. Stanza).** `tar.exe`
+can't read a file another process has open for writing, and Windows
+reports that sharing violation as a plain "Permission denied". For
+these, tick **Windows: copy files first** on the app's
+`ssh_files_and_db_dump` settings (Remote OS must be `windows`). Before
+the tar step, PUMA runs `powershell.exe` over SSH to copy each listed
+path into a temporary `puma-snap-<id>` folder under the SSH user's
+`%TEMP%`, using shared-read access (which works on a file that's open
+elsewhere), tars that copy instead, then deletes the temporary folder —
+the app keeps running and no service stop is needed. Requirements:
+`powershell.exe` on the remote host and free space for one extra copy
+of the listed files. The copy is taken while the app may be writing, so
+it's a crash-consistent snapshot: fine for a pre-update safety backup,
+but restore from it accordingly. Directory paths are copied
+recursively, and the archive's contents are laid out the same way as
+without the option (drive letter dropped).
+
 ---
 
 ## Procedures
@@ -388,6 +405,17 @@ the sudoers rule looks right** — check `NoNewPrivileges` in
 whether the account in question is a local Windows administrator
 being hit by token filtering on a remote/non-interactive logon (for
 Windows-based apps specifically).
+
+**A Windows backup fails with "Permission denied" even though the
+file's ACLs grant read to the SSH user** (e.g. `tar: Couldn't open
+C:/ProgramData/Telestream/Stanza/stanza.db: Permission denied`) — if
+`icacls` shows the account does have read access, the app most likely
+has the file open for writing and `tar.exe` can't share it. Tick
+**Windows: copy files first** on that app (see [Backups](#backups)).
+The retry on the tar step only helps with short-lived locks, not an
+app that holds the file open for long stretches. If a failed run
+leaves a `puma-snap-*` folder behind in the SSH user's temp directory,
+it's safe to delete by hand.
 
 **"No such column" error right after a deploy** — a migration script
 wasn't run. See [Deploying an update to PUMA itself](#deploying-an-update-to-puma-itself).

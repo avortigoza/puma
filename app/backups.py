@@ -17,13 +17,16 @@ trail in the Backups history page instead of a bare "it didn't work".
 
 from __future__ import annotations
 
+import base64
 import glob
+import json
 import os
 import shlex
 import shutil
 import subprocess
 import tarfile
 import time
+import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -114,11 +117,14 @@ class BackupStrategy(ABC):
         env: Optional[dict[str, str]] = None,
         timeout: int = 1800,
         stdout_file: Optional[Path] = None,
+        log_as: Optional[str] = None,
     ) -> subprocess.CompletedProcess:
         """Run a command, logging it (with any env overrides named but not
-        valued, so passwords never land in the log) and its output."""
+        valued, so passwords never land in the log) and its output.
+        `log_as` replaces the logged command text, for commands carrying a
+        long encoded payload that would just be noise in the log."""
         redacted_env_names = sorted((env or {}).keys())
-        shown = " ".join(shlex.quote(c) for c in cmd)
+        shown = log_as if log_as is not None else " ".join(shlex.quote(c) for c in cmd)
         if redacted_env_names:
             shown = f"[env: {', '.join(redacted_env_names)}] " + shown
         log.append("$ " + shown)
@@ -574,6 +580,14 @@ class SshFilesAndDbDump(BackupStrategy):
         Field_("exclude", "Exclude patterns (one per line, optional)", type="textarea", required=False,
                placeholder="_sessions",
                help="Matched against any path component (GNU tar --exclude semantics), so a bare name like _sessions skips that directory wherever it appears. Use for transient data - session files, caches, tmp/lock dirs - that has no backup value and is often unreadable by the SSH backup account anyway since it's owned by the web server user."),
+        Field_("snapshot_locked_files", "Windows: copy files first (for files the app keeps open)", type="checkbox", required=False,
+               help="For a Windows app that keeps its own files open for writing while it runs (e.g. Stanza's "
+                    "stanza.db), where tar.exe fails with 'Permission denied' even though the account can read "
+                    "the file. Before the tar step, PUMA copies each listed path into a temporary folder on the "
+                    "remote host using shared-read access (which works on a file that's open elsewhere), tars "
+                    "that copy instead, then deletes the temporary folder - so the app keeps running, no "
+                    "service stop needed. Needs powershell.exe on the remote host and free space for one extra "
+                    "copy of the listed files. Windows only; ignored for Linux."),
         Field_("db_engine", "Database engine", type="select", required=False,
                choices=["none", "mysql", "postgres"]),
         Field_("db_via_docker", "Dump via docker exec on the remote host", type="checkbox", required=False,
@@ -676,6 +690,78 @@ class SshFilesAndDbDump(BackupStrategy):
             )
         log.append(f"{out_path.name}: {_human_size(out_path.stat().st_size)}")
 
+    @staticmethod
+    def _ps_encoded(script: str) -> str:
+        """powershell.exe -EncodedCommand wants base64 of UTF-16LE. Using it
+        sidesteps every layer of quoting between PUMA, ssh and cmd.exe."""
+        return base64.b64encode(script.encode("utf-16-le")).decode("ascii")
+
+    def _snapshot_remote_windows(self, base: list[str], target: str, paths: list[str], log: list[str]) -> str:
+        """Copy `paths` into a fresh temp folder on the remote Windows host
+        using shared-read opens, and return that folder's path. Directory
+        paths are copied recursively. Layout under the temp folder mirrors
+        the original paths minus the drive letter, same as tar.exe stores
+        them. The temp folder name is generated here, never taken from
+        remote output, so it is safe to feed back into the cleanup step."""
+        snap_name = f"puma-snap-{uuid.uuid4().hex[:12]}"
+        paths_json = json.dumps(paths).replace("'", "''")
+        script = f"""
+$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
+$snap = Join-Path $env:TEMP '{snap_name}'
+New-Item -ItemType Directory -Force -Path $snap | Out-Null
+function Copy-Shared([string]$src) {{
+    if ($src.Length -gt 2 -and $src[1] -eq ':') {{ $rel = $src.Substring(3) }} else {{ $rel = $src }}
+    $dst = Join-Path $snap $rel
+    New-Item -ItemType Directory -Force -Path (Split-Path $dst) | Out-Null
+    $s = [IO.File]::Open($src, 'Open', 'Read', 'ReadWrite,Delete')
+    try {{
+        $d = [IO.File]::Create($dst)
+        try {{ $s.CopyTo($d) }} finally {{ $d.Close() }}
+    }} finally {{ $s.Close() }}
+}}
+try {{
+    $paths = '{paths_json}' | ConvertFrom-Json
+    foreach ($p in $paths) {{
+        if (Test-Path -LiteralPath $p -PathType Container) {{
+            Get-ChildItem -LiteralPath $p -Recurse -File -Force | ForEach-Object {{ Copy-Shared $_.FullName }}
+        }} else {{
+            Copy-Shared $p
+        }}
+    }}
+    Write-Output "PUMA_SNAPSHOT_DIR=$snap"
+}} catch {{
+    Remove-Item -LiteralPath $snap -Recurse -Force -ErrorAction SilentlyContinue
+    [Console]::Error.WriteLine("Snapshot failed: " + $_.Exception.Message)
+    exit 1
+}}
+"""
+        cmd = base + [target, "powershell -NoProfile -NonInteractive -EncodedCommand " + self._ps_encoded(script)]
+        proc = self._run(cmd, log, timeout=1800,
+                         log_as=f"[ssh {target}] powershell: copy {len(paths)} path(s) to temp folder {snap_name} using shared-read")
+        out = proc.stdout.decode("utf-8", "replace") if proc.stdout else ""
+        for line in out.splitlines():
+            line = line.strip()
+            if line.startswith("PUMA_SNAPSHOT_DIR="):
+                snap = line.split("=", 1)[1]
+                if snap_name not in snap:
+                    raise BackupFailed("snapshot step returned an unexpected folder path")
+                return snap
+        raise BackupFailed("snapshot step did not report a folder path - see log for details")
+
+    def _cleanup_remote_windows(self, base: list[str], target: str, snap_dir: str, log: list[str]) -> None:
+        """Best-effort delete of the temp folder; never raises, so a cleanup
+        hiccup can't turn a good backup into a failed one."""
+        if "puma-snap-" not in snap_dir:
+            return
+        quoted = snap_dir.replace("'", "''")
+        script = f"Remove-Item -LiteralPath '{quoted}' -Recurse -Force -ErrorAction SilentlyContinue"
+        try:
+            self._run(base + [target, "powershell -NoProfile -NonInteractive -EncodedCommand " + self._ps_encoded(script)],
+                      log, timeout=300, log_as=f"[ssh {target}] powershell: delete temp folder {snap_dir}")
+        except Exception as exc:  # noqa: BLE001
+            log.append(f"Warning: could not delete remote temp folder {snap_dir}: {exc}")
+
     def run(self, dest_dir: Path, log: list[str]) -> BackupResult:
         host = self.config.get("ssh_host", "")
         user = self.config.get("ssh_user", "")
@@ -688,21 +774,35 @@ class SshFilesAndDbDump(BackupStrategy):
         is_windows = (self.config.get("remote_os") or "linux") == "windows"
         quote = self._win_quote if is_windows else shlex.quote
 
-        remote_cmd = "tar czf -"
-        excludes = [e.strip() for e in self.config.get("exclude", "").splitlines() if e.strip()]
-        for e in excludes:
-            remote_cmd += " --exclude=" + quote(e)
-        remote_cmd += " " + " ".join(quote(p) for p in paths)
-        ssh_cmd = self._ssh_base_cmd(host, port)
-        ssh_cmd += [f"{user}@{host}", remote_cmd]
+        snapshot = is_windows and self.config.get("snapshot_locked_files") == "on"
+        base = self._ssh_base_cmd(host, port)
+        target = f"{user}@{host}"
+        snap_dir = ""
         out_path = dest_dir / "files.tar.gz"
-        # Retried: this step has been seen to fail transiently on a
-        # remote Windows host (e.g. Stanza GMA) with a locking error on
-        # one file (tar.exe reading a file the app itself has briefly
-        # open for a write) even though an immediately-following manual
-        # run succeeds against the same files - a real but short-lived
-        # lock, not a persistent problem with the path or connection.
-        self._run_with_retry(ssh_cmd, log, attempts=3, delay_seconds=15, stdout_file=out_path, timeout=3600)
+        try:
+            if snapshot:
+                snap_dir = self._snapshot_remote_windows(base, target, paths, log)
+                log.append(f"Snapshot ready at {snap_dir}")
+                tar_targets = f"-C {quote(snap_dir)} ."
+            else:
+                tar_targets = " ".join(quote(p) for p in paths)
+
+            remote_cmd = "tar czf -"
+            excludes = [e.strip() for e in self.config.get("exclude", "").splitlines() if e.strip()]
+            for e in excludes:
+                remote_cmd += " --exclude=" + quote(e)
+            remote_cmd += " " + tar_targets
+            ssh_cmd = base + [target, remote_cmd]
+            # Retried: this step has been seen to fail transiently on a
+            # remote Windows host with a locking error (tar.exe reading a
+            # file the app itself has open for a write; Windows reports
+            # the sharing violation as "Permission denied"). Apps that
+            # hold a file open for long stretches need the "copy files
+            # first" option above instead - retrying can't outwait those.
+            self._run_with_retry(ssh_cmd, log, attempts=3, delay_seconds=15, stdout_file=out_path, timeout=3600)
+        finally:
+            if snap_dir:
+                self._cleanup_remote_windows(base, target, snap_dir, log)
         log.append(f"{out_path.name}: {_human_size(out_path.stat().st_size)}")
 
         engine = self.config.get("db_engine") or "none"
